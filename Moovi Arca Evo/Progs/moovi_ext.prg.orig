@@ -1,0 +1,40 @@
+******************************************************
+**     Microdesign MOOVI Extension Class Template   **
+** 		   (c) 2000-2017 Microdesign S.r.l.			**
+******************************************************
+
+* Estensione creazione documenti di MOOVI
+Define Class c_moovi_ext As Custom
+
+	* Eseguita prima di generare il documento in ARCA
+	* Elenco dei cursori disponibili:
+	* _DoTes		Testa del documento (il campo Id_DoTes_New deve essere .null.)
+	* _DoRig		Righe con prelievo
+	* _DoRigL		Righe senza prelievo
+	Procedure CreateDocument_Before()
+
+		* codice di esempio (togliere dal REM) .....................................
+		*!*	Select _DoTes
+		*!*	Browse
+		*!*	Messagebox("Codice eseguito prima della creazione del documento.")
+		* .......................................................
+
+	Endproc
+
+
+	* Eseguita dopo la generarazione del documento in ARCA
+	* Elenco dei cursori disponibili:
+	* _DoTes		Testa del documento (il campo Id_DoTes_New contiene l'identificativo del documento creato in Arca)
+	* _DoRig		Righe con prelievo
+	* _DoRigL		Righe senza prelievo
+	Procedure CreateDocument_After()
+
+		* codice di esempio (togliere dal REM) .....................................
+		*!*	Select _DoTes
+		*!*	Browse
+		*!*	Messagebox("Codice eseguito dopo la creazione del documento con id: " + Transform(_DoTes.Id_DoTes_New))
+		* .......................................................
+
+	Endproc
+
+Enddefine

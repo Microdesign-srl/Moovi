@@ -1,0 +1,78 @@
+﻿
+/* Per Tablet */
+@media screen and (max-width: 768px) {
+    .w3-modal-content {
+        width: 98%;
+    }
+
+    .w3-medium {
+        font-size: 9px !important;
+    }
+
+    [type='checkbox'] {
+        height: 20px !important;
+        width: 20px !important;
+    }
+
+}
+
+/* Per devices 3,5 pollici */
+@media screen and (max-width: 400px) {
+
+    .mo-page, h1, h2, h3, h4, h5, h6 {
+        font-size: 0.8em !important;
+    }
+
+    .w3-modal-content {
+        margin: 0px 2px !important;
+    }
+
+    .w3-large, h1, h2, h3, h4, h5, h6 {
+        font-size: 1.1em !important;
+    }
+
+    .s35 {
+        font-size: 25px !important;
+    }
+
+    .s40 {
+        font-size: 30px !important;
+    }
+
+    .mo-header {
+        height: 48px !important;
+    }
+
+    .mo-menu li {
+        height: 60px !important;
+    }
+
+    .mo-intestazione {
+        height: 28px !important;
+    }
+     
+    .mo-title{
+        font-size: 2.1em !important;
+    }
+
+    .mo-page {
+        top: 50px !important;
+    }
+
+    .w3-container{
+        padding: 0 !important;
+    }
+
+    [type='checkbox'] {
+        height: 18px !important;
+        width: 18px !important;
+    }
+
+    .w3-btn, .w3-button { 
+        padding: 8px 6px !important;
+    }
+
+    .w3-xlarge {
+        font-size: 20px !important;
+    }
+}
