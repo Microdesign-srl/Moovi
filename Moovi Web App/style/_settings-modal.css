@@ -1,0 +1,72 @@
+﻿:root {
+    --settings-modal-overlay-z-indez: 2000;
+    --settings-modal-overlay-bgcolor: hsla(0, 0%, 100%, .56);
+    --settings-modal-header-panel: 50vh;
+    --settings-modal-header-height: 30px;
+    --settings-modal-footer-height: 50px;
+}
+
+.settings-modal {
+    position: fixed;
+    top: 0px;
+    left: 0px;
+    width: 100%;
+    width: 100%;
+    height: 100%;
+    background-color: var(--settings-modal-overlay-bgcolor);
+    z-index: var(--settings-modal-overlay-z-indez);
+    display: none;
+}
+
+    .settings-modal .settings-modal-panel {
+        width: 95%;
+        height: var(--settings-modal-header-panel);
+        margin: 5px auto 0;
+        background-color: white;
+        color: hsl(0, 1%, 15%);
+        border: 1px solid hsl(0, 1%, 15%);
+        border-radius: 10px;
+        overflow: hidden;
+        z-index: var(--settings-modal-overlay-z-indez + 1 );
+    }
+
+        .settings-modal .settings-modal-panel .header {
+            position: relative;
+            width: 100%;
+            height: var(--settings-modal-header-height);
+            padding: 3px;
+            color: white;
+            background-color: #1250aa;
+            z-index: var(--settings-modal-overlay-z-indez + 2 );
+        }
+
+        .settings-modal .settings-modal-panel .content {
+            display: grid;
+            grid-template-columns: auto, 100px;
+            justify-content: space-around;
+            align-content:center;
+            width: 100%;
+            height: calc(var(--settings-modal-header-panel) - var(--settings-modal-header-height) - var(--settings-modal-footer-height));
+            padding: 3px;
+        }
+
+            .settings-modal .settings-modal-panel .content input[type="number"] {
+                text-align: right;
+            }
+
+        .settings-modal .settings-modal-panel .footer {
+            position: relative;
+            display: grid;
+            grid-template-columns: 100px 75px;
+            justify-content: center;
+            width: 100%;
+            height: var(--settings-modal-footer-height);
+            border-top: 1px solid hsl(0, 1%, 15%);
+            padding: 3px;
+            bottom: 0;
+            left: 0;
+        }
+
+            .settings-modal .settings-modal-panel .footer button {
+                margin: 3px;
+            }

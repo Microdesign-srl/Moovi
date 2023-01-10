@@ -1,0 +1,11 @@
+﻿#Detail_PackingList {
+    font-size: 1em;
+}
+
+    #Detail_PackingList .mo-table.mo-table-br {
+        font-size: 0.7em;
+    }
+
+    #Detail_PackingList .pk-all th{
+        font-size: .9rem;
+    }
