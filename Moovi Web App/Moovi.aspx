@@ -11,6 +11,7 @@
         #1.0080 pgPrelievi (TUTTI I DOC PRELEVABILI)
         #1.0090 pgRLRig (RIGHE DOC)
         #1.0095 pgRLPK (PACK LIST)
+        #1.0096 pgRLPrelievo (Prelievo del documento)
         #1.0100 pgRLPiede (PIEDE DEL DOCUMENTO)
         #1.0110 pgStampaDocumento (STAMPA DOC CREATO)
         #1.0110 pgTRAperti (TRASFERIMENTI APERTI)   --> Da aggiungere
@@ -18,7 +19,7 @@
         #1.0130 pgTRRig_P (PARTENZA)
         #1.0140 pgTRRig_A (ARRIVO)
         #1.0150 pgTRPiede (PIEDE DEI TRASFERIMENTI)
-        #1.0160 pgINAperti 
+        #1.0160 pgINAperti      
         #1.0170 pgIN (TESTA INVENTARIO)
         #1.0180 pgINRig (RIGHE INVENTARIO)
         #1.0190 pgINPiede (PIEDE INVENTARIO)
@@ -34,7 +35,7 @@
         #1.0280 pgSMPiede (PIEDE DELLO STOCCAGGIO)
         #1.0300 pgPRTRAttivita Produzione Avanzata - pagina select delle attività a cui trasferire le bolle
         #1.0310 pgPRTRMateriale Produzione Avanzata - pagina trasferimento materiale
-        #1.0310 pgPRMPMateriale Produzione Avanzata - pagina rientro materiale
+        #1.0320 pgPRMPMateriale Produzione Avanzata - pagina rientro materiale
         **PERS**
         #2.999 pgxListaCarico
 
@@ -78,36 +79,43 @@
         #5.09 Popup_ARAlias_Insert (RICHIESTA DI APERTURA PAGINA PER INSERIMENTO ALIAS)
         #5.10 Popup_TRAperti_Del (CONFERMA ELIMINAZIONE DEL TRASFERIMENTO APERTO)
         #5.11 Popup_SMRig_Del (CONFERMA ELIMINAZIONE DELLE RIGHE STOCCATE)
+        #5.12 Popup_UserPref (elenco preferenze utente)
+        #5.70 Popup_BC_Select 
 --%>
 
 <%@ Page Language="C#" AutoEventWireup="true" CodeBehind="Moovi.aspx.cs" Inherits="MooviWeb.Moovi" %>
-
-<!DOCTYPE html>
-
 <html xmlns="http://www.w3.org/1999/xhtml">
 <head runat="server">
     <meta name="viewport" content="width=device-width, initial-scale=1" />
     <link rel="icon" href="image/moovi.ico" type="image/ico" sizes="16x16" />
-    <%-- File Standard --%>
+    <!-- Script statici -->
     <script src="js/jquery-3.2.0.min.js"></script>
+    <script src="js/injector.js"></script>
     <link href="style/w3.css" rel="stylesheet" />
-    <%-- File MOOVI js --%>
-    <script src="js/Global.js"></script>
-    <script src="js/Barcode.js"></script>
-    <script src="js/Moovi.js"></script>
-    <script src="js/MediaQuery.js"></script>
-    <script src="js/IN.js"></script>
-    <%-- File MOOVI css --%>
+    <link href="font-awesome/css/all.min.css" rel="stylesheet" />
     <link href="style/Style.css" rel="stylesheet" />
+    <link href="style/MediaQuery.css" rel="stylesheet" />
+    <link href="style/icon-library.css" rel="stylesheet" />
+    <!-- Cache Busting -->
+    <script>
+        // CSS
+        var styles = [/*"style/w3.css", "style/Style.css", "style/MediaQuery.css", "style/icon-library.css",*/ "style/pgMGDisp.css", "style/Detail_PackingList.css"];
+        styles.forEach(function (item) { injectStyle(item); });
+        // Scripts
+        var scripts = ["js/ajax.js", "js/settings.js", "js/Global.js", "js/Barcode.js", "js/BarcodeHelper.js", "js/MooviBarcode.js", "js/Moovi.js", "js/MediaQuery.js", "js/IN.js"];
+        scripts.forEach(function (item) { injectScript(item); });
+    </script>
+
     <title>MOOVI</title>
     <script>
 
-        $(document).ready(function () {
+        window.addEventListener("load", function () {
 
             Init();
 
             //Rivisualizzo il BODY
             $("body").removeClass("w3-hide");
+
         });
 
     </script>
@@ -126,9 +134,10 @@
             </div>--%>
             <%-- frecce per spostamento tra le pagine --%>
             <div class="c3 mo-display-inlineblock w3-right mo-pt-8" style="width: 63.33%;">
-                <i class="nav-next mi darkblue s38 mo-pointer mo-display-inlineblock w3-right w3-margin-right w3-circle w3-white" onclick="Nav.Next();">keyboard_arrow_right</i>
-                <i class="nav-back mi darkblue s38 mo-pointer mo-display-inlineblock w3-right w3-margin-right w3-circle w3-white" onclick="Nav.Back();">keyboard_arrow_left</i>
-                <i class="nav-keybhide mi white s38 mo-pointer mo-display-inlineblock w3-right w3-margin-right " onclick="Nav.Keybhide();">keyboard_hide</i>
+                <i class="nav-next mi darkblue s38 s32small mo-pointer mo-display-inlineblock w3-right w3-margin-right w3-circle w3-white" onclick="Nav.Next();">keyboard_arrow_right</i>
+                <i class="nav-back mi darkblue s38 s32small mo-pointer mo-display-inlineblock w3-right w3-margin-right w3-circle w3-white" onclick="Nav.Back();">keyboard_arrow_left</i>
+                <i class="nav-keybhide mi white s38 s32small mo-pointer mo-display-inlineblock w3-right w3-margin-right " onclick="Nav.Keybhide();">keyboard_hide</i>
+                <i data-key="settings" class="settings-modal-btn mi s38 s32small white mo-pointer mo-display-inlineblock w3-right w3-margin-right" onclick="UserPref_Load();">settings</i>
             </div>
         </div>
     </div>
@@ -165,7 +174,11 @@
                 <i class="mi s35 mo-padding-10 w3-left w3-round-small w3-margin-right w3-text-white mo-purple">import_export</i>
                 <span class="w3-left mo-pt-8 w3-text-black w3-large">Prelievo</span>
             </li>
-
+            <li id="menu-da" class="menu menu-principale w3-hover-light-gray w3-padding-8">
+                <i class="mi s35 mo-padding-10 w3-left w3-round-small w3-margin-right w3-blue">content_paste</i>
+                <span class="w3-left mo-pt-8 w3-text-black w3-large">Documenti Aperti</span>
+                <span class="mo-tag w3-tag w3-margin-left mo-mt-8"></span>
+            </li>
             <li id="menu-tr" class="menu menu-principale w3-hover-light-gray w3-padding-8">
                 <i class="mi s35 mo-padding-10 w3-left w3-round-small w3-margin-right w3-text-white mo-ariforceblue">call_split</i>
                 <span class="w3-left mo-pt-8 w3-text-black w3-large">Trasferimenti</span>
@@ -185,13 +198,6 @@
                 <i class="mi s35 mo-padding-10 w3-left w3-round-small w3-margin-right w3-text-white mo-darkairforceblue">playlist_add_check</i>
                 <span class="w3-left mo-pt-8 w3-text-black w3-large">Inventario</span>
             </li>
-
-            <li id="menu-da" class="menu menu-principale w3-hover-light-gray w3-padding-8">
-                <i class="mi s35 mo-padding-10 w3-left w3-round-small w3-margin-right w3-blue">content_paste</i>
-                <span class="w3-left mo-pt-8 w3-text-black w3-large">Documenti Aperti</span>
-                <span class="mo-tag w3-tag w3-margin-left mo-mt-8"></span>
-            </li>
-
             <li id="menu-ac" class="menu menu-principale w3-hover-light-gray w3-padding-8">
                 <i class="mi s35 white mo-padding-10 w3-left w3-round-small w3-margin-right mo-orange">cached</i>
                 <span class="w3-left mo-pt-8 w3-text-black w3-large">Avvia Consumo</span>
@@ -204,7 +210,7 @@
 
             <li id="menu-im" class="menu menu-principale w3-hover-light-gray w3-padding-8">
                 <i class="mi s35 white mo-padding-10 w3-left w3-round-small w3-margin-right w3-text-white" style="background-color: #FFE808">youtube_searched_for</i>
-                <span class="w3-left mo-pt-8 w3-large w3-text-black w3-large">Interrogazione Magazzino</span>
+                <span class="w3-left mo-pt-8 w3-large w3-text-black w3-large cut-text">Interrogazione Magazzino</span>
             </li>
 
             <li id="menu-rs" class="menu menu-principale w3-hover-light-gray w3-padding-8">
@@ -246,7 +252,7 @@
         <input filterkey="DocAperti_DO" type="text" class="filtro first-focus mo-search w3-input w3-border mo-mb-5 " placeholder="Cerca Documento..." />
         <div class="mo-intestazione">
             <label class="">DOCUMENTI APERTI</label>
-            <i class="mi s28 white mo-pointer w3-right" onclick="Ajax_xmofn_DOAperti();">cached</i>
+            <i class="mi s28 s22small white mo-pointer w3-right" onclick="Ajax_xmofn_DOAperti();">cached</i>
         </div>
         <ul class="w3-ul">
             <li prgexe="" cd_do="" prgid="" class="template w3-bar w3-hover-light-gray mo-pointer w3-padding-8" style="display: none;">
@@ -271,7 +277,7 @@
         <input filterkey="DocRistampa_DO" type="text" class="filtro first-focus mo-search w3-input w3-border mo-mb-5 " placeholder="Cerca Documento..." />
         <div class="mo-intestazione">
             <label class="">DOCUMENTI STAMPABILI</label>
-            <i class="mi s30 white mo-pointer w3-right" onclick="Ajax_xmofn_DORistampa();">cached</i>
+            <i class="mi s30 s22small white mo-pointer w3-right" onclick="Ajax_xmofn_DORistampa();">cached</i>
         </div>
         <ul class="w3-ul w3-card-4">
             <li class="template w3-bar w3-hover-light-gray mo-pointer w3-padding-8" style="display: none;">
@@ -320,7 +326,7 @@
         <%-- data --%>
         <div class="w3-row mo-mt-4">
             <label class="mo-font-darkgray mo-bold w3-large">DATA</label><br />
-            <input name='DataOra' type="datetime" class="w3-large w3-margin-right w3-input w3-border" style="width: 200px" />
+            <input name='DataOra' type="date" class="w3-large w3-margin-right w3-input w3-border" style="width: 200px" />
         </div>
         <div class="w3-container w3-center mo-mt-20">
             <button class="validate w3-button w3-round-medium w3-large w3-green">CONFERMA</button>
@@ -331,7 +337,7 @@
     <div id="pgRL" class="mo-page w3-container mo-mb-5">
         <div class="mo-intestazione mo-pt-5">
             <label class="lb-doc-name w3-large">DOC</label><label>&nbsp;-&nbsp;</label>
-            <label class="lb-doc-desc w3-small">Descrizione del documento</label>
+            <label class="lb-doc-desc w3-small truncate-text inline-block-label">Descrizione del documento</label>
             <div class="w3-dropdown-click w3-right">
                 <i onclick="$('.info-content').toggle();" class="mi s20 white mo-pointer">info</i>
                 <div class="info-content w3-dropdown-content w3-bar-block w3-border w3-padding" onclick="$(this).hide();">
@@ -437,7 +443,7 @@
             <table class="mo-table mo-mt-4 w3-table w3-bordered">
                 <tr>
                     <th class="w3-small">
-                        <input class="ck-documenti mo-pointer w3-check w3-left" type="checkbox" />
+                        <input class="ck-documenti mo-pointer w3-left" type="checkbox" />
                     </th>
                     <th class="mo-lbl w3-center w3-small">DOC.</th>
                     <th class="mo-lbl w3-center w3-small">N Righe</th>
@@ -447,14 +453,14 @@
                     <%--<th class="w3-small">SC.</th>--%>
                 </tr>
                 <tr class="template" style="display: none;">
-                    <td class="w3-small">
-                        <input class="ck-documento mo-pointer w3-check" type="checkbox" onclick="$(this).prop('checked', this.checked);" />
+                    <td class="w3-small cell-content">
+                        <input class="ck-documento mo-pointer" type="checkbox" onclick="$(this).prop('checked', this.checked);if(!this.checked) { ActivePage().find('.ck-documenti').prop('checked', false)}" />
                     </td>
-                    <td class="w3-small Cd_DO mo-pointer mo-font-darkblue mo-underline"></td>
-                    <td class="w3-small N_DORig"></td>
-                    <td class="w3-small NumeroDoc"></td>
-                    <td class="w3-small DataDoc"></td>
-                    <td class="w3-small Cd_MGEsercizio"></td>
+                    <td class="w3-small cell-content Cd_DO mo-pointer mo-font-darkblue mo-underline"></td>
+                    <td class="w3-small cell-content N_DORig"></td>
+                    <td class="w3-small cell-content NumeroDoc"></td>
+                    <td class="w3-small cell-content DataDoc"></td>
+                    <td class="w3-small cell-content Cd_MGEsercizio"></td>
                     <%--<td class="w3-small Cd_DoSottoCommessa"></td>--%>
                 </tr>
             </table>
@@ -471,21 +477,36 @@
             <div class="w3-row">
                 <input name="Id_DOTes" type="text" class="first-focus w3-input w3-border mo-mt-4" placeholder="ID Documento" />
                 <div class="content w3-container mo-mt-8 mo-mb-5">
-                    <div class="mo-display-inlineblock w3-left" style="width: 49%;">
-                        <label class="mo-lbl">TIPO DOCUMENTO</label><br />
-                        <input name="Cd_DO" type="text" class="w3-input w3-border mo-mt-4" style="width: 90px;" />
-                        <br />
-                        <label class="mo-lbl">CLIENTE/FORNITORE</label><br />
-                        <input name="Cd_CF" type="text" class="w3-input w3-border mo-mt-4" style="width: 100px;" />
+                    <div class="mo-display-inlineblock w3-left  mo-mb-5" style="width: 100%;">
+                        <div class="mo-display-inlineblock w3-left" style="width: 49%;">
+                            <label class="mo-lbl">TIPO DOCUMENTO</label><br />
+                            <input name="Cd_DO" type="text" class="w3-input w3-border mo-mt-4" style="width: 100px;" />
+                        </div>
+                        <div class="mo-display-inlineblock w3-right" style="width: 49%;">
+                            <label class="mo-lbl">DATA CONSEGNA</label><br />
+                            <input name="DataConsegna" type="date" class="w3-input w3-border mo-mt-4" style="width: 200px;" />
+                        </div>
                     </div>
-                    <div class="mo-display-inlineblock w3-right" style="width: 49%;">
-                        <label class="mo-lbl">SO</label><br />
-                        <input name="Cd_CFDest" type="text" class="w3-input w3-border mo-mt-4" style="width: 90px;" />
-                        <br />
-                        <label class="mo-lbl">DATA CONSEGNA</label><br />
-                        <input name="DataConsegna" type="date" class="w3-input w3-border mo-mt-4" style="width: 200px;" />
+                    <div class="mo-display-inlineblock w3-left  mo-mb-5" style="width: 100%;">
+                        <div class="mo-display-inlineblock w3-left" style="width: 49%;">
+                            <label class="mo-lbl">CLIENTE/FORNITORE</label><br />
+                            <input name="Cd_CF" type="text" class="w3-input w3-border mo-mt-4" style="width: 100px;" />
+                            <i searchkey="Cd_CF" class="search mi s35 mo-pointer w3-margin-right w3-right">search</i>
+                        </div>
+                        <div class="mo-display-inlineblock w3-right" style="width: 49%;">
+                            <label class="mo-lbl">SO</label><br />
+                            <input name="Cd_CFDest" type="text" class="w3-input w3-border mo-mt-4" style="width: 100px;" />
+                            <i searchkey="Cd_CFDest" class="search mi s35 mo-pointer w3-margin-right w3-right">search</i>
+                        </div>
                     </div>
+                    <div class="mo-display-inlineblock w3-left  mo-mb-5" style="width: 100%;">
+                        <label class="mo-lbl">SOTTOCOMMESSA</label><br />
+                        <input name="Cd_DOSottoCommessa" type="text" class="w3-input w3-border mo-mt-4" style="width: 80%;" />
+                        <i searchkey="Cd_DOSottoCommessa" class="search mi s35 mo-pointer w3-margin-right w3-right">search</i>
+                    </div>
+
                 </div>
+
                 <div class="w3-center mo-mt-4">
                     <%--<label class="title mo-lbl w3-margin-right">DOC</label>--%>
                     <select name="Cd_DO" class="mo-select w3-border mo-display-inlineblock w3-left" style="width: 40%"></select>
@@ -511,6 +532,8 @@
                         <span class="numerodoc"></span>
                         <span class="datadoc"></span>
                         <br />
+                        <span class="do_sottocommessa_descrizione"></span>
+                        <br />
                         <span class="dataconsegna mo-bold"></span>
                     </div>
                     <input class="ck-documento w3-bar-item w3-right w3-large mo-pointer w3-check" type="checkbox" onclick="Select_Cd_DO_Template($(this));" style="width: 40px; margin-bottom: 20px;" />
@@ -529,15 +552,17 @@
                     <label class="">LETTURE:&nbsp;&nbsp;</label>
                     <label class="letture"></label>
                     <i class="icon mi s30 mo-pointer w3-right mo-mt--3">keyboard_arrow_up</i>
+                    <i class="mi s25 mo-pointer w3-right mo-mr-6" onclick="pgRLRig_Clear();" title="Reset dei campi">autorenew</i>
                     <i class="delete mi s25 white mo-pointer  w3-margin-right w3-right" onclick="$('#Popup_Delete_Last_Read').show();">delete_forever</i>
                     <i class="detail-letture mi s30 white mo-pointer w3-margin-right w3-right mo-mt--3">dehaze</i>
-                    <i class="detail-notepiede mi s22 white mo-pointer w3-right" onclick="Ajax_xmofn_xMORLPrelievo_NotePiede();">notes</i>
+                    <i class="detail-notepiede mi s22 white mo-pointer w3-right w3-ml-2" onclick="Ajax_xmofn_xMORLPrelievo_NotePiede();">notes</i>
                 </div>
                 <div class="mo-ofy-auto" style="max-height: 150px;">
                     <table class="content mo-table w3-table w3-striped mo-mt-4 ">
                         <tr>
                             <th class="mo-lbl w3-small">AR</th>
                             <th class="mo-lbl w3-small Descrizione cl-ardesc">Descrizione</th>
+                            <th class="mo-lbl w3-small Cd_MGUbicazione  cl-ardesc display-none">Ubicazione</th>
                             <%--<th class="w3-small Cd_ARLotto">LOTTO</th>--%>
                             <th class="mo-lbl w3-small w3-center">UM</th>
                             <th class="mo-lbl w3-small w3-center">QTA</th>
@@ -546,6 +571,7 @@
                         <tr class="template" style="display: none;">
                             <td class="w3-small Cd_AR"></td>
                             <td class="w3-small Descrizione cl-ardesc"></td>
+                            <td class="w3-small Cd_MGUbicazione  cl-ardesc display-none" style="background-color: yellow; color: black"></td>
                             <%--<td class="w3-small Cd_ARLotto"></td>--%>
                             <td class="w3-small w3-center Cd_ARMisura mo-pointer mo-btnum w3-btn"></td>
                             <td class="w3-small w3-right-align Quantita"></td>
@@ -553,7 +579,8 @@
                         </tr>
                         <%-- template non nascosto perchè ci pensano le media query --%>
                         <tr class="template_ARDesc tr-ardesc" style="display: none;">
-                            <td class="w3-small Descrizione" colspan="5"></td>
+                            <td class="w3-small Descrizione" colspan="3"></td>
+                            <td class="w3-small Cd_MGUbicazione display-none" style="background-color: yellow; color: black"></td>
                         </tr>
                     </table>
                 </div>
@@ -569,22 +596,21 @@
                 <i class="detail-pklistref mi s30 black mo-pointer w3-right" title="Dettaglio pesi e misure del pacco">receipt</i>
             </div>
             <%-- BARCODE --%>
-            <div class="div-barcode div-accordion mo-mb-4">
+            <div class="div-barcode div-accordion lg-mt-5">
                 <div class="header mo-intestazione">
-                    <label class="">BARCODE</label>
+                    <label>BARCODE</label>
                     <i class="icon mi s30 mo-pointer w3-right mo-mt--3">keyboard_arrow_up</i>
-                    <i class="mi s25 mo-pointer w3-right mo-mr-6" onclick="pgRLRig_Clear();" title="Reset dei campi">autorenew</i>
-                    <label class="container w3-right mo-mr-6">
-                        <label class="mo-lblautoconfirm">Conferma automatica</label>
-                        <input class="ck-autoconfirm" type="checkbox" checked="checked" onclick="SetFocus();" />
+                    <label class="container w3-right w3-margin-right">
+                        <label class="lg-lblautoconfirm">Conf. automatica</label>
+                        <input class="ck-autoconfirm" type="checkbox" onclick="SetFocus();" style="position: absolute;" />
                         <span class="checkmark"></span>
                     </label>
                 </div>
-                <div class="content">
+                <div class="content lg-mt-5">
                     <div class="barcode">
-                        <select class="mo-select mo-mb-5 w3-input w3-border" style="width: 70px;" onchange="Barcode_SelType();"></select>
-                        <input name="xMOBarcode" class="first-focus w3-large mo-ml-5 w3-input w3-border" type="text" placeholder="Barcode..." style="width: 60%;" />
-                        <i class="detail-bc mi s35 mo-pointer w3-right w3-margin-right">reorder</i><br />
+                        <select class="lg-input lg-select lg-mb-5" style="width: 80px;" onchange="Barcode_SelType();"></select>
+                        <input name="xMOBarcode" class="first-focus lg-input lg-mr-6" type="text" placeholder="Barcode..." style="width: 70%;" onfocus="$(this).off( 'blur' );" />
+                        <label class="detail-bc lg-lbllink mo-pointer lg-mt-5 w3-right w3-margin-right">Vedi lista completa &gt;</label><br />
                     </div>
                 </div>
             </div>
@@ -598,9 +624,14 @@
             <%-- QTA E UM --%>
             <div class="div-qtaum mo-mb-4">
                 <label class="mo-lbl">QUANTITA</label><br />
-                <input name="Quantita" type="number" class="w3-large w3-margin-right w3-input w3-border w3-right-align" style="width: 35%" onfocus="Quantita_Onfocus($(this));" tabindex="10" />
-                <select name="Cd_ARMisura" class="mo-select w3-border w3-large" style="width: 60px;" tabindex="15">
+                <input name="Quantita" type="number" class="w3-large w3-margin-right w3-input w3-border w3-right-align" style="width: 35%" tabindex="10" />
+                <select name="Cd_ARMisura" class="mo-select w3-border w3-large" style="width: 60px;" tabindex="13">
                 </select>
+            </div>
+            <%-- Fattore --%>
+            <div class="div-umfatt mo-mb-4">
+                <label class="mo-lbl">Fattore</label><br />
+                <input name="UMFatt" type="number" class="w3-large w3-margin-right w3-input w3-border w3-right-align" style="width: 35%" tabindex="15" />
             </div>
             <%-- COMMESSA --%>
             <div class="div-com mo-mb-4">
@@ -651,7 +682,7 @@
                 <label class="mo-lbl">LOTTO</label><label class="lotto-scad mo-lbl">/SCAD.</label><br />
                 <input name="Cd_ARLotto" type="text" class="w3-large w3-input w3-border" style="width: 100px" tabindex="45" />
                 <label class="lotto-scad mo-font-darkgray mo-bold">/</label>
-                <input name="DataScadenza" type="date" class="lotto-scad w3-large w3-margin-right w3-input w3-border" style="width: 160px" tabindex="46" />
+                <input name="DataScadenza" type="date" class="lotto-scad w3-large w3-margin-right w3-input w3-border" style="width: 140px" tabindex="46" />
                 <i searchkey="Cd_ARLotto" class="search mi s35 mo-pointer w3-right w3-margin-right">search</i><br />
             </div>
             <%-- MATRICOLA --%>
@@ -669,7 +700,8 @@
             </div>
             <%-- BTN CONFERMA --%>
             <div class="w3-row w3-center w3-margin-bottom">
-                <button class="btn-confirm mo-rlrigconfirm mo-mt-20" onclick="Confirm_Read(oPrg.drDO.EseguiControlli);" tabindex="55">CONFERMA</button>
+                <button class="btn-confirm mo-rlrigconfirm mo-mt-20" onclick="Confirm_Read(oPrg.drDO.EseguiControlli);onRowCountChange();" tabindex="55">CONFERMA</button>
+                <%--<button class="btn-confirm mo-rlrigconfirm mo-mt-20" onclick="Confirm_Read(oPrg.drDO.EseguiControlli);onRowCountChange();" tabindex="55">CONFERMA</button>--%>
             </div>
         </div>
     </div>
@@ -683,7 +715,7 @@
         <label class="mo-font-darkgray mo-bold w3-large">TIPOLOGIA UL:&nbsp;</label>
         <label class="Cd_xMOUniLog mo-font-darkgray mo-bold w3-large"></label>
         <%--<label class="detail-pklist mo-pointer w3-right w3-margin-right" title="Dettaglio della Packing List" style="text-decoration: underline;">Visualizza dettaglio</label>--%>
-        <i class="detail-pklist mi s30 black mo-pointer w3-right w3-margin-right" title="Dettaglio della Packing List">dehaze</i>
+        <i class="detail-pklist mi s30 black mo-pointer w3-right w3-margin-right hamburger" title="Dettaglio della Packing List">dehaze</i>
         <div class="mo-intestazione">
             <label class="">PESI:</label>
             <label class="w3-right">[Kg]</label>
@@ -695,7 +727,7 @@
         </div>
         <div class="mo-display-inlineblock" style="width: 32.33%;">
             <label class="mo-font-darkgray mo-bold w3-large">P.NETTO:</label><br />
-            <input name="PesoNettoMks" type="number" class="first-focus w3-margin-right w3-input w3-border w3-right-align" style="width: 70px" onchange="PKPesi_Calcola($(this));" />
+            <input name="PesoNettoMks" type="number" class="w3-margin-right w3-input w3-border w3-right-align" style="width: 70px" onchange="PKPesi_Calcola($(this));" />
         </div>
         <div class="mo-display-inlineblock" style="width: 32.33%;">
             <label class="mo-font-darkgray mo-bold w3-large">P.LORDO:</label><br />
@@ -733,6 +765,30 @@
         </div>
     </div>
 
+    <%-- #1.0096 pgRLPrelievo (Prelievo del documento) --%>
+    <div id="pgRLPrelievo" class="mo-page w3-container">
+        <div class="mo-intestazione">
+            <label class="">PRELIEVI</label>
+            <i class="mi selall s25 white mo-pointer w3-right w3-hover-amber" onclick="pgRLPrelievo_CheckAll();" style="width: 25px;">checked</i>
+        </div>
+        <div class="mo-mt-4">
+            <div class="mo-mb-5">
+                <label class="title">SELEZIONE RIGHE DA EVADERE&nbsp;</label>
+            </div>
+            <div class="articoli">
+                <div class="w3-card-4 articolo template" style="display: none;">
+                    <div class="w3-card-header w3-container w3-light-gray">
+                        Articolo
+                    </div>
+                    <div class="w3-card-ele w3-container">Documenti</div>
+                    <div class="w3-card-footer w3-container w3-light-gray w3-right-align">
+                        Totali
+                    </div>
+                </div>
+            </div>
+        </div>
+    </div>
+
     <%-- #1.0100 pgRLPiede (PIEDE DEL DOCUMENTO) --%>
     <div id="pgRLPiede" class="mo-page w3-container">
         <div class="mo-intestazione">
@@ -765,6 +821,10 @@
                     <span class="mo-bold" title="Fuorilista inseriti nel prelievo">F.L.</span><br />
                     <span class="ar-fuorilista"></span>
                 </div>
+            </div>
+            <div class="mo-mt-4 spedizione w3-margin-top">
+                <input type="checkbox" name="ChiudiSpedizione" class="w3-margin-left w3-margin-right" />
+                <label class="mo-lbl">CHIUDI SPEDIZONE</label>
             </div>
             <div class="mo-mt-4">
                 <%-- Targa e Caricatore --%>
@@ -876,7 +936,7 @@
         <div>
             <label class="mo-font-darkgray mo-bold w3-large">DATA</label>
             <br />
-            <input name="DataMov" type="datetime" class="first-focus w3-margin-right w3-large w3-input w3-border" style="width: 200px" />
+            <input name="DataMov" type="date" class="first-focus w3-margin-right w3-large w3-input w3-border" style="width: 200px" />
         </div>
         <%-- COMMESSA --%>
         <div class="div-com">
@@ -964,7 +1024,7 @@
         <%-- QTA E UM --%>
         <div class="div-qtaum">
             <label class="mo-font-darkgray mo-bold w3-large">QUANTITA</label><br />
-            <input name="Quantita" type="number" class="w3-large w3-margin-right w3-input w3-border w3-right-align" style="width: 35%" onfocus="Quantita_Onfocus();" />
+            <input name="Quantita" type="number" class="w3-large w3-margin-right w3-input w3-border w3-right-align" style="width: 35%" />
             <select name="Cd_ARMisura" class="mo-select w3-border w3-large" style="width: 60px;">
             </select>
         </div>
@@ -1040,7 +1100,7 @@
         <%-- QTA E UM --%>
         <div class="div-qtaum">
             <label class="mo-font-darkgray mo-bold w3-large">QUANTITA</label><br />
-            <input name="Quantita" type="number" class="w3-large w3-margin-right w3-input w3-border" style="width: 35%" onfocus="Quantita_Onfocus();" />
+            <input name="Quantita" type="number" class="w3-large w3-margin-right w3-input w3-border mo-text-right" style="width: 35%" />
             <select name="Cd_ARMisura" class="mo-select w3-border w3-large" style="width: 60px;">
             </select>
         </div>
@@ -1114,7 +1174,7 @@
     <div id="pgINAperti" class="mo-page w3-container mo-mb-5">
         <div class="mo-intestazione">
             <label class="">INVENTARI APERTI</label>
-            <i class="mi s30 white mo-pointer w3-right" onclick="Ajax_xmofn_xMOIN_Aperti();">cached</i>
+            <i class="mi s30 s22small white mo-pointer w3-right" onclick="Ajax_xmofn_xMOIN_Aperti();">cached</i>
         </div>
         <i class="mi s50 white mo-btn-bottom position1 w3-circle w3-blue mo-pointer" onclick="oPrg.Pages[oPrg.PageIdx(enumPagine.pgIN)].Enabled = true; Nav.Next();">add</i>
         <ul class="w3-ul w3-card-4">
@@ -1185,7 +1245,7 @@
             </div>
             <div class="div-rig">
                 <label class="mo-font-darkgray mo-bold w3-large">RIGHE</label><br />
-                <input name='Top' class="w3-input w3-border w3-right-align" type="number" style="width: 50px; border-radius: 2px 3px;" />
+                <input name='Top' class="w3-input w3-border w3-right-align" type="number" style="width: 150px; border-radius: 2px 3px;" />
             </div>
         </div>
     </div>
@@ -1340,7 +1400,7 @@
                     <label class="lbl Quantita"></label>
                     <br />
                     <i class="mod-somma mi s45 gray mo-va-middle mo-pointer w3-margin-right" onclick="$(this).toggleClass('w3-text-green'); $('.focus').focus();">add_box</i>
-                    <input name="QtaRilevata" type="number" class="focus w3-large w3-margin-right w3-input w3-border w3-right-align" style="width: 35%" onfocus="Quantita_Onfocus();" />
+                    <input name="QtaRilevata" type="number" class="focus w3-large w3-margin-right w3-input w3-border w3-right-align" style="width: 35%" />
                     <select name="Cd_ARMisura" class="mo-select w3-border w3-large" style="width: 60px;">
                     </select><br />
                     <%-- Icona che indica la modalità somma se attiva --%>
@@ -1613,70 +1673,147 @@
     <%-- #1.0230 pgMGDisp (Interrogazione magazzini) --%>
     <div id="pgMGDisp" class="mo-page w3-container">
         <div class="div-filtri div-accordion">
-            <div class="header mo-intestazione">
+            <div class="header mo-intestazione pgMGDisp-header">
                 <label class="">FILTRI&nbsp;</label>
                 <i class="icon mi s30 mo-pointer w3-right">keyboard_arrow_up</i>
             </div>
             <div class="content">
                 <%-- ARTICOLO --%>
-                <div>
-                    <label class="mo-font-darkgray mo-bold w3-large">ARTICOLO</label><label class="ar-aa mo-font-darkgray w3-small mo-ml-5"></label><br />
+                <div class="div-cdar">
+                    <label class="mo-font-darkgray w3-large">ARTICOLO</label><label class="ar-aa mo-font-darkgray w3-small mo-ml-5"></label><br />
                     <input name="Cd_AR" type="text" class="first-focus w3-large w3-margin-right w3-input w3-border" style="width: 60%" />
                     <i searchkey="Cd_AR" class="search mi s35 mo-pointer w3-right w3-margin-right">search</i>
                 </div>
 
                 <%-- MG --%>
                 <div class="div-mg">
-                    <label class="mo-font-darkgray mo-bold w3-large">MAGAZZINO</label><br />
-                    <input name="Cd_MG" type="text" class="first-focus input-label w3-margin-right w3-input w3-border" style="width: 150px" />
+                    <label class="mo-font-darkgray w3-large">MAGAZZINO</label><br />
+                    <input name="Cd_MG" type="text" class="first-focus input-label w3-margin-right w3-input w3-border" style="width: 60%" />
                     <i searchkey="Cd_MG" searchtitle="MAGAZZINO" class="search mi s35 mo-pointer w3-right w3-margin-right">search</i>
                 </div>
 
                 <%-- UBICAZIONE --%>
                 <div class="div-mgubi">
-                    <label class="mo-font-darkgray mo-bold w3-large">UBICAZIONE MAGAZZINO</label><br />
-                    <input name="Cd_MGUbicazione" type="text" class="w3-margin-right w3-input w3-border" style="width: 150px" />
+                    <label class="mo-font-darkgray w3-large">UBICAZIONE MAGAZZINO</label><br />
+                    <input name="Cd_MGUbicazione" type="text" class="w3-margin-right w3-input w3-border" style="width: 60%" />
                     <i searchkey="Cd_MGUbicazione" searchtitle="UBICAZIONE" class="search mi s35 mo-pointer w3-right w3-margin-right">search</i>
                 </div>
 
-                <%-- BTN CONFERMA --%>
-                <div class="w3-row w3-center w3-margin-bottom">
-                    <button class="btn-confirm w3-button w3-round-medium w3-large w3-green mo-mt-20" onclick="Confirm_MGDisp();">CERCA</button>
+                <%-- SOTTOCOMMESSA --%>
+                <div class="div-mgubi">
+                    <label class="mo-font-darkgray w3-large">SOTTOCOMMESSA</label><br />
+                    <input name="Cd_DOSottoCommessa" type="text" class="w3-margin-right w3-input w3-border" style="width: 60%" />
+                    <i searchkey="Cd_DOSottoCommessa" searchtitle="SOTTOCOMMESSA" class="search mi s35 mo-pointer w3-right w3-margin-right">search</i>
+                </div>
+
+                <%-- LOTTO --%>
+                <div class="div-mgubi">
+                    <label class="mo-font-darkgray w3-large">LOTTO</label><br />
+                    <input name="Cd_ARLotto" type="text" class="w3-margin-right w3-input w3-border" style="width: 60%" />
+                    <i searchkey="Cd_ARLotto" searchtitle="LOTTO" class="search mi s35 mo-pointer w3-right w3-margin-right">search</i>
+                </div>
+
+                <%-- QTA POS. --%>
+                <div class="div-mgubi">
+                    <div class="qta">
+                        <label>QTA POS.</label>
+                        <div class="switch-container">
+                            <label class="switch">
+                                <input class="pgMGDisp-Cruscotto chk-qtapos" type="checkbox" />
+                                <div></div>
+                            </label>
+                        </div>
+                    </div>
+
+                    <%-- BTN CONFERMA --%>
+                    <div class="w3-row w3-center w3-margin-bottom">
+                        <button class="btn-confirm w3-button w3-round-medium w3-large w3-red mo-mt-20" onclick="Clear_MGDisp();$('input[name=\'Cd_AR\']').focus();">REIMPOSTA</button>
+                        <button class="btn-confirm w3-button w3-round-medium w3-large w3-green mo-mt-20" onclick="Confirm_MGDisp();">CERCA</button>
+                    </div>
                 </div>
             </div>
-        </div>
-        <label class="filtri mo-bold w3-large w3-text-blue"></label>
-        <%-- TABELLA GIACENZE --%>
-        <div class="div-giac" style="display: none;">
-            <table class="mo-table mo-mt-4 w3-table">
-                <tr>
-                    <th class="w3-small"></th>
-                    <th class="w3-small AR">AR</th>
-                    <%--<th class="w3-small Descrizione cl-ardesc">Descrizione</th>--%>
-                    <th class="w3-small w3-center">UM</th>
-                    <th class="w3-small w3-center">QTA</th>
-                    <th class="w3-small w3-center">DIS</th>
-                    <th class="w3-small w3-center">D.IMM</th>
-                </tr>
-                <tr class="template_mgubi w3-border-top" style="display: none;">
-                    <td class="w3-small MGUbi" colspan="6" style="font-weight: bold;"></td>
-                </tr>
-                <tr class="template_ar w3-border-top" style="display: none;">
-                    <td class="w3-small"></td>
-                    <td class="w3-small Cd_AR AR"></td>
-                    <%--<td class="w3-small Descrizione cl-ardesc"></td>--%>
-                    <td class="w3-small w3-center Cd_ARMisura"></td>
-                    <td class="w3-small w3-right-align Quantita"></td>
-                    <td class="w3-small w3-right-align QuantitaDisp"></td>
-                    <td class="w3-small w3-right-align QuantitaDimm"></td>
-                </tr>
-                <%-- template non nascosto perchè ci pensano le media query --%>
-                <tr class="template_ardesc w3-border-bottom tr-ardesc" style="display: none;">
-                    <td class="w3-small MGUbi"></td>
-                    <td class="w3-small Descrizione" colspan="5"></td>
-                </tr>
-            </table>
-            <label class="msg"></label>
+            <%--<label class="filtri mo-bold w3-large w3-text-blue"></label>--%>
+
+            <%-- TABELLA GIACENZE  --%>
+            <div class="div-giac">
+                <label data-key="ARDescrizione" class="filtri mo-bold w3-large w3-text-blue"></label>
+                <div data-key="pgMGDisp-Cruscotto" class="pgMGDisp-Cruscotto">
+                    <div class="contenitore-totali">
+                        <div class="totali">
+                            <div class="totale">Totale:</div>
+                            <div class="dettaglio">
+                                <div class="tot-qta w3-text-green">
+                                    <span class="label">Qta.</span>
+                                    <span class="valoreTot">99999.99</span>
+                                    <span class="um">pz</span>
+                                </div>
+                                <div class="tot-dis w3-text-orange">
+                                    <span class="label">Disp.</span>
+                                    <span class="valoreTot">99999.99</span>
+                                    <span class="um">pz</span>
+                                </div>
+                                <div class="tot-dimm w3-text-blue">
+                                    <span class="label">D.imm</span>
+                                    <span class="valoreTot">99999.99</span>
+                                    <span class="um">pz</span>
+                                </div>
+                            </div>
+                        </div>
+                    </div>
+
+                </div>
+                <table data-key="giacenze" class="mo-table mo-mt-4 w3-table">
+                    <tr>
+                        <%--<th class="w3-small"></th>--%>
+                        <th class="w3-small AR">AR</th>
+                        <%--<th class="w3-small Descrizione cl-ardesc">Descrizione</th>--%>
+                        <th class="w3-small w3-center w3-text-underline th-lotto-commessa">
+                            <div class="lotto-commessa">
+                                <label name="Cd_ARLotto" class="">LOTTO</label>
+                                <label name="Cd_DOSottoCommessa" class="">COMMESSA</label>
+                            </div>
+                        </th>
+                        <th class="w3-small w3-center all-QTA">
+                            <div class="all-qta-roller">
+                                <div name="label_qta" class="w3-text-underline w3-text-green w3-text-underline-green">QTA</div>
+                                <div name="label_dis" class="w3-text-underline w3-text-orange w3-text-underline-orange">DIS.</div>
+                                <div name="label_d_imm" class="w3-text-underline w3-text-blue w3-text-underline-blue">D.IMM</div>
+                            </div>
+                        </th>
+                        <th class="w3-small w3-center">UM</th>
+                        <%--<th class="w3-small w3-center">D.IMM</th>--%>
+                    </tr>
+                    <tr class="template_mgubi w3-border-top" style="display: none;">
+                        <td class="w3-small MGUbi" colspan="4" style="font-weight: bold;"></td>
+                    </tr>
+                    <tr class="template_ar w3-border-top" style="display: none;">
+                        <%--<td class="w3-small"></td>--%>
+                        <td class="w3-small Cd_AR AR"></td>
+                        <%--<td class="w3-small Descrizione cl-ardesc"></td>--%>
+                        <td class="w3-small w3-right-align td-lotto-commessa"></td>
+                        <td class="w3-small w3-right-align td-quantita"></td>
+                        <td class="w3-small w3-center Cd_ARMisura" style="float: right;"></td>
+                        <%--<td class="w3-small w3-right-align QuantitaDisp"></td>
+                        <td class="w3-small w3-right-align QuantitaDimm"></td>--%>
+                    </tr>
+                    <%-- template non nascosto perchè ci pensano le media query --%>
+                    <%--<tr class="template_ardesc w3-border-bottom tr-ardesc" style="display: none;">
+                        <td class="w3-small MGUbi"></td>
+                        <td class="w3-small Descrizione" colspan="5"></td>
+                    </tr>--%>
+                    <tr class="template_ardesc w3-border-bottom w3-light-grey tr-ardesc" style="display: none;">
+                        <td class="w3-small Descrizione" colspan="4"></td>
+                    </tr>
+                    <tr class="w3-border-bottom tr-ardesc tr-MGUbi" style="display: none;">
+                        <td class="w3-small" colspan="1">Ubi.</td>
+                        <td class="w3-small MGUbi" colspan="3"></td>
+                    </tr>
+                    <%--<tr class="template_ardesc w3-border-bottom tr-ardesc tr-LottoCommessa">
+                        <td class="w3-small LottoCommessa" colspan="5"></td>
+                    </tr>--%>
+                </table>
+                <label class="msg"></label>
+            </div>
         </div>
     </div>
 
@@ -1848,7 +1985,7 @@
                 </div>--%>
                 <div class="div-qtaum">
                     <label class="mo-lbl">QUANTITA</label><br />
-                    <input name="Quantita" type="number" class="w3-large w3-margin-right w3-input w3-border w3-right-align" style="width: 35%; font-size: 1.3em;" onfocus="Quantita_Onfocus();" />
+                    <input name="Quantita" type="number" class="w3-large w3-margin-right w3-input w3-border w3-right-align" style="width: 35%; font-size: 1.3em;" />
                     <select name="Cd_ARMisura" class="mo-select w3-border w3-large" style="width: 60px; font-size: 1.3em;">
                     </select>
                 </div>
@@ -1909,7 +2046,7 @@
                 </div>--%>
                 <div class="div-qtaum">
                     <label class="mo-font-darkgray mo-bold w3-large">QUANTITA</label><br />
-                    <input name="Quantita" type="number" class="w3-large w3-margin-right w3-input w3-border w3-right-align" style="width: 35%; font-size: 1.3em;" onfocus="Quantita_Onfocus($(this));" />
+                    <input name="Quantita" type="number" class="w3-large w3-margin-right w3-input w3-border w3-right-align" style="width: 35%; font-size: 1.3em;" />
                     <select name="Cd_ARMisura" class="mo-select w3-border w3-large" style="width: 60px; font-size: 1.3em;">
                     </select>
                     <br />
@@ -2002,7 +2139,7 @@
     <div id="pgPRTRAttivita" class="mo-page w3-container">
         <div class="mo-intestazione">
             <label class="">BOLLE DI LAVORAZIONE</label>
-            <i class="mi s30 white mo-pointer w3-right" onclick="Ajax_xmofn_xMOPRBLAttivita();">cached</i>
+            <i class="mi s25 white mo-pointer w3-right" onclick="Ajax_xmofn_xMOPRBLAttivita();">cached</i>
         </div>
         <!-- Ricerca -->
         <div class="w3-row mo-mt-4">
@@ -2049,6 +2186,7 @@
                         <div class="w3-col s12">
                             <span data-bind="Descrizione"></span>
                             <span data-bind="Id_PrBLAttivita" class="mo-tag-green"></span>
+                            <span data-bind="Mancante" class="mo-tag w3-red">!</span>
                         </div>
                     </div>
                     <div class="w3-row">
@@ -2067,19 +2205,28 @@
     <%-- #1.0310 pgPRTRMateriale Produzione Avanzata - pagina trasferimento materiale --%>
     <div id="pgPRTRMateriale" class="mo-page w3-container">
         <!-- Riepilogo attivita -->
-        <div class="mo-intestazione">
-            <label class="">BOLLA <span data-bind="Id_PrBL"></span></label>
-        </div>
         <div data-key="Riepilogo" class="w3-row mo-mt-4">
             <div class="w3-col s12">
+                <span data-bind="Id_PrBL" class="mo-tag"></span>
                 <label data-bind="Bolla" class="mo-font-darkblue"></label>
-                <label data-bind="Articolo"></label>
+                <span data-bind="Id_PrBLAttivita" class="mo-tag-green"></span>
+                <label data-bind="Fase"></label>
             </div>
         </div>
         <!-- Materiali: Lista -->
         <div data-key="Lista">
+            <div data-key="QtaUsr" class="w3-row mo-mt-4">
+                <div class="w3-col s12 w3-right-align w3-margin-right">
+                    <label data-bind="QtaUsrP" class="mo-font-darkgray w3-large">QUANTITA DA TRA</label>
+                    <input data-bind="QtaUsrP" name="QtaUsr" type="number" class="w3-large w3-input w3-border w3-right-align" style="width: 125px; margin-right: 5px;" />
+                    <select data-bind="Cd_ARMisura" name="Cd_ARMisura" class="mo-select w3-border w3-large" style="width: 60px;"></select>
+                    <input data-bind="FattoreToUM1" type="hidden" />
+                    <label data-bind="PercTrasferitaP" class="mo-font-darkgray w3-large w3-margin-left mo-pointer mo-underline">%</label><br />
+                </div>
+            </div>
             <div class="mo-intestazione">
                 <label class="">MAT. DA TRA. - FASE <span data-bind="Id_PrBLAttivita"></span></label>
+                <i class="mi s25 white mo-pointer w3-right" onclick="PRBLMaterialiUsr();">cached</i>
             </div>
             <div class="mo-ofy-auto">
                 <table data-key="Materiali" class="mo-table mo-mt-4 w3-table w3-bordered">
@@ -2087,8 +2234,9 @@
                         <tr>
                             <th class="w3-small">AR</th>
                             <th class="w3-small">LOTTO</th>
-                            <th class="w3-small CF">QTA</th>
+                            <th class="w3-small">QTA</th>
                             <th class="w3-small">UM</th>
+                            <th class="w3-small"></th>
                         </tr>
                     </thead>
                     <tbody>
@@ -2097,9 +2245,19 @@
                             <td data-bind="Cd_ARLotto" class="w3-small"></td>
                             <td data-bind="Qta" class="w3-small w3-right-align"></td>
                             <td data-bind="Cd_ARMisura" class="w3-small"></td>
+                            <td data-bind="Del" class="w3-small" style="width: 55px;"></td>
                         </tr>
                     </tbody>
                 </table>
+                <div data-bind="Trasferisci" class="w3-col s12">
+                    <div class="w3-row w3-center w3-margin-top">
+                        <label class="mo-font-darkgray w3-large">% Trasf.</label>
+                        <input data-bind="PercTrasferita" name="PercTrasferita" type="number" class="w3-large w3-input w3-border w3-right-align" style="width: 85px; margin-right: 5px;" />
+                    </div>
+                    <div class="w3-row w3-center w3-margin-bottom">
+                        <button class="btn-confirm w3-button w3-round-medium w3-large w3-green mo-mt-20" onclick="Ajax_xmosp_xMOPRTR_Close()">TRASFERISCI</button>
+                    </div>
+                </div>
             </div>
         </div>
         <!-- Materiali: Trasferimento -->
@@ -2109,28 +2267,28 @@
                 <i class="mi mo-pointer w3-right" onclick="PRTRMateriali_Load()">menu</i>
             </div>
             <div class="w3-row">
-                <div class="w3-col s12">
+                <div class="w3-col s8">
                     <label data-bind="Cd_AR" class="mo-h4 mo-font-darkblue mo-bold lbl"></label>
                     <input type="hidden" name="Cd_AR" />
                     <label data-bind="Descrizione" class="mo-font-darkblue mo-bold lbl"></label>
                 </div>
-                <div class="w3-col s12">
-                    <label class="mo-font-darkblue lbl">LOTTO:</label>
-                    <label data-bind="Cd_ARLotto" class="mo-font-darkblue mo-bold lbl"></label>
-                </div>
-                <div class="w3-col s8 div-qtaum mo-mt-8">
-                    <label class="mo-font-darkgray w3-large">QUANTITA</label><br />
-                    <input data-bind="Quantita" name="QtaRilevata" type="number" class="w3-large w3-input w3-border w3-right-align" style="width: 75px; margin-right: 5px;" onfocus="Quantita_Onfocus();" />
-                    <select data-bind="Cd_ARMisura" name="Cd_ARMisura" class="mo-select w3-border w3-large" style="width: 60px;"></select>
-                    <input data-bind="FattoreToUM1" type="hidden" />
-                    <i class="detail-giacar mi s35 mo-pointer w3-right w3-margin-right" data-mg="P" title="Giacenza">inbox</i>
-                </div>
-                <div class="w3-col s4 mo-mt-8">
+                <div class="w3-col s4">
                     <label class="switch">
                         <input data-bind="Mancante" class="ck-alt" type="checkbox" />
                         <span class="slider round danger"></span>
                     </label>
                     <span class="mo-ml-5">Mancante</span>
+                </div>
+                <div class="w3-col s8">
+                    <label class="mo-font-darkblue lbl">LOTTO:</label>
+                    <label data-bind="Cd_ARLotto" class="mo-font-darkblue mo-bold lbl"></label>
+                </div>
+                <div class="w3-col s12 div-qtaum mo-mt-8">
+                    <label class="mo-font-darkgray w3-large">QUANTITA</label><br />
+                    <input data-bind="Quantita" name="QtaRilevata" type="number" class="w3-large w3-input w3-border w3-right-align" style="width: 125px; margin-right: 5px;" />
+                    <select data-bind="Cd_ARMisura" name="Cd_ARMisura" class="mo-select w3-border w3-large" style="width: 60px;"></select>
+                    <input data-bind="FattoreToUM1" type="hidden" />
+                    <i class="detail-giacar mi s35 mo-pointer w3-right w3-margin-right" data-mg="P" title="Giacenza">inbox</i>
                 </div>
                 <div class="w3-col s12 mo-mt-8">
                     <label class="lbl">PARTENZA</label><br />
@@ -2165,13 +2323,14 @@
                 </div>
                 <div class="w3-col s12">
                     <div class="w3-row w3-center w3-margin-bottom">
-                        <button class="btn-confirm w3-button w3-round-medium w3-large w3-green mo-mt-20" onclick="Ajax_xmosp_xMOPRTRMateriale_Save()">CONFERMA</button>
+                        <button class="btn-confirm w3-button w3-round-medium w3-large w3-green mo-mt-20" onclick="Ajax_xmosp_xMOPRTRRig_Save()">CONFERMA</button>
                     </div>
                 </div>
             </div>
         </div>
     </div>
 
+    <%-- #1.0320 pgPRMPMateriale Produzione Avanzata - pagina rientro materiale --%>
     <div id="pgPRMPMateriale" class="mo-page w3-container">
         <div data-key="Lista">
             <div class="mo-intestazione">
@@ -2230,7 +2389,7 @@
                 </div>
                 <div class="w3-col s8 div-qtaum mo-mt-8">
                     <label class="mo-font-darkgray w3-large">QUANTITA REALE</label><br />
-                    <input data-bind="Quantita_A" name="Quantita" type="number" class="first-focus w3-large w3-input w3-border w3-right-align" style="width: 75px; margin-right: 5px;" onfocus="Quantita_Onfocus();" />
+                    <input data-bind="Quantita_A" name="Quantita" type="number" class="first-focus w3-large w3-input w3-border w3-right-align" style="width: 75px; margin-right: 5px;" />
                     <select data-bind="Cd_ARMisura" name="Cd_ARMisura" class="mo-select w3-border w3-large" style="width: 60px;"></select>
                     <input data-bind="FattoreToUM1" type="hidden" />
                 </div>
@@ -2377,14 +2536,19 @@
         <div class="w3-modal-content w3-round-medium">
             <header class="w3-container w3-amber mo-shadow">
                 <h4 class="mo-font-darkblue">ARTICOLI</h4>
-                <div class="w3-display-topright" style="margin-right: 28px">
+                <span class="w3-btn w3-large eraser-icon mo-font-darkblue" style="right: 180px" onclick="$(this).parent().parent().find('input.filtro').val('').focus().select().trigger($.Event('keyup', {which: 13}))">
+                    <i class="fa fa-solid fa-eraser"></i>
+                </span>
+
+                <div class="w3-display-topright" style="margin-right: 35px">
                     <label class="container w3-right w3-margin-right w3-margin-top">
                         <label class="">Articoli Fittizi</label>
                         <input class="ck-fittizi" type="checkbox" checked="checked" />
                         <span class="checkmark blue"></span>
                     </label>
                 </div>
-                <span class="w3-btn w3-large mo-font-darkblue w3-display-topright" onclick="Search_Close();">&times;</span>
+
+                <span class="w3-btn w3-large font25bold  mo-font-darkblue w3-display-middleright" onclick="Search_Close();">&times;</span>
             </header>
             <div class="w3-container">
                 <input filterkey="Search_AR" type="text" class="filtro mo-search mo-mt-4 w3-input" placeholder="Cerca..." style="border: 1px solid #5199ff;" />
@@ -2404,14 +2568,20 @@
         <div class="w3-modal-content w3-round-medium">
             <header class="w3-container w3-amber mo-shadow">
                 <h4 class="mo-font-darkblue">LOTTO</h4>
-                <div class="w3-display-topright" style="margin-right: 30px">
+
+                <span class="w3-btn w3-large eraser-icon mo-font-darkblue" style="right: 215px;" onclick="$(this).parent().parent().find('input.filtro').val('').focus().select().trigger($.Event('keyup', {which: 13}))">
+                    <i class="fa fa-solid fa-eraser"></i>
+                </span>
+
+                <div class="w3-display-topright" style="margin-right: 33px">
                     <label class="container w3-right w3-margin-right w3-margin-top">
                         <label class="">Lotti con giacenza</label>
                         <input class="ck-giacpositiva" type="checkbox" checked="checked" />
                         <span class="checkmark blue"></span>
                     </label>
                 </div>
-                <span class="w3-button w3-large mo-font-darkblue w3-display-topright" onclick="Search_Close();">&times;</span>
+
+                <span class="w3-btn w3-large font25bold  mo-font-darkblue w3-display-middleright" onclick="Search_Close();">&times;</span>
             </header>
             <div class="w3-container">
                 <input filterkey="Search_ARLotto" type="text" class="filtro mo-search mo-mt-4 w3-input" placeholder="Cerca..." style="border: 1px solid #5199ff !important;" />
@@ -2442,8 +2612,12 @@
     <div id="SearchCF" class="w3-modal mo-zindex-2001">
         <div class="w3-modal-content w3-round-medium">
             <header class="w3-container w3-amber mo-shadow">
-                <h4 class="title mo-font-darkblue"></h4>
-                <span class="w3-btn w3-large mo-font-darkblue w3-display-topright" onclick="Search_Close();">&times;</span>
+                <h4 class="title mo-font-darkblue truncate-text"></h4>
+
+                <span class="w3-btn w3-large eraser-icon mo-font-darkblue" onclick="$(this).parent().parent().find('input.filtro').val('').focus().select().trigger($.Event('keyup', {which: 13}))">
+                    <i class="fa fa-solid fa-eraser"></i>
+                </span>
+                <span class="w3-btn w3-large font25bold  mo-font-darkblue w3-display-middleright" onclick="Search_Close();">&times;</span>
             </header>
             <div class="w3-container">
                 <div class="w3-row">
@@ -2457,8 +2631,8 @@
                             <label class="cd-cf w3-large"></label>
                             <label class="desc-cf"></label>
                         </div>
-                        <div class="mo-display-inlineblock w3-right" style="width: 10%;">
-                            <i class="detail mi s35 darkblue">account_box</i>
+                        <div class="mo-display-inlineblock w3-right" style="width: 10%; text-align: center;">
+                            <i class="detail mi darkblue">account_box</i>
                         </div>
                     </li>
                 </ul>
@@ -2472,7 +2646,11 @@
         <div class="w3-modal-content w3-round-medium">
             <header class="w3-container w3-amber mo-shadow">
                 <h4 class="mo-font-darkblue">DESTINAZIONI</h4>
-                <span class="w3-btn w3-large mo-font-darkblue w3-display-topright" onclick="Search_Close();">&times;</span>
+
+                <span class="w3-btn w3-large eraser-icon mo-font-darkblue" onclick="$(this).parent().parent().find('input.filtro').val('').focus().select().trigger($.Event('keyup', {which: 13}))">
+                    <i class="fa fa-solid fa-eraser"></i>
+                </span>
+                <span class="w3-btn w3-large font25bold  mo-font-darkblue w3-display-middleright" onclick="Search_Close();">&times;</span>
             </header>
             <div class="w3-container">
                 <input filterkey="Search_CFDest" type="text" class="filtro mo-search mo-mt-4 w3-input" placeholder="Cerca..." style="border: 1px solid #5199ff;" />
@@ -2498,8 +2676,12 @@
     <div id="SearchMG" class="w3-modal mo-zindex-2001">
         <div class="w3-modal-content">
             <header class="w3-container w3-amber mo-shadow">
-                <h4 class="title mo-font-darkblue"></h4>
-                <span class="w3-btn w3-large mo-font-darkblue w3-display-topright" onclick="Search_Close();">&times;</span>
+                <h4 class="title mo-font-darkblue truncate-text"></h4>
+
+                <span class="w3-btn w3-large eraser-icon mo-font-darkblue" onclick="$(this).parent().parent().find('input.filtro').val('').focus().select().trigger($.Event('keyup', {which: 13}))">
+                    <i class="fa fa-solid fa-eraser"></i>
+                </span>
+                <span class="w3-btn w3-large font25bold  mo-font-darkblue w3-display-middleright" onclick="Search_Close();">&times;</span>
             </header>
             <div class="w3-container">
                 <input filterkey="Search_MG" type="text" class="filtro mo-search mo-mt-4 w3-input" style="border: 1px solid #5199ff;" />
@@ -2514,11 +2696,14 @@
     </div>
 
     <%-- #3.05 SearchMGUbicazione --%>
-    <div id="SearchMGUbicazione" class="w3-modal" style="z-index: 1500;">
+    <div id="SearchMGUbicazione" class="w3-modal mo-mo-zindex-2001" style="">
         <div class="w3-modal-content">
             <header class="w3-container w3-amber mo-shadow">
-                <h4 class="title mo-font-darkblue"></h4>
-                <span class="w3-btn w3-large mo-font-darkblue w3-display-topright" onclick="Search_Close();">&times;</span>
+                <h4 class="title mo-font-darkblue truncate-text"></h4>
+                <span class="w3-btn w3-large eraser-icon mo-font-darkblue" onclick="$(this).parent().parent().find('input.filtro').val('').focus().select().trigger($.Event('keyup', {which: 13}))">
+                    <i class="fa fa-solid fa-eraser"></i>
+                </span>
+                <span class="w3-btn w3-large font25bold  mo-font-darkblue w3-display-middleright" onclick="Search_Close();">&times;</span>
             </header>
             <div class="w3-container">
                 <select class="mo-select mo-mt-4" style="width: 100%; padding: 6px 4px;" onchange="MGUbicazione_Giac_Filter();">
@@ -2543,8 +2728,11 @@
     <div id="SearchDOSottoCommessa" class="w3-modal mo-zindex-2001">
         <div class="w3-modal-content">
             <header class="w3-container w3-amber mo-shadow">
-                <h4 class="title mo-font-darkblue">SOTTOCOMMESSE</h4>
-                <span class="w3-btn w3-large mo-font-darkblue w3-display-topright" onclick="Search_Close();">&times;</span>
+                <h4 class="title mo-font-darkblue  truncate-text">SOTTOCOMMESSE</h4>
+                <span class="w3-btn w3-large eraser-icon mo-font-darkblue" onclick="$(this).parent().parent().find('input.filtro').val('').focus().select().trigger($.Event('keyup', {which: 13}))">
+                    <i class="fa fa-solid fa-eraser"></i>
+                </span>
+                <span class="w3-btn w3-large font25bold  mo-font-darkblue w3-display-middleright" onclick="Search_Close();">&times;</span>
             </header>
             <div class="w3-container">
                 <input filterkey="Search_DOSC" type="text" class="filtro mo-search mo-mt-4 w3-input" placeholder="Cerca..." style="border: 1px solid #5199ff;" />
@@ -2563,7 +2751,10 @@
         <div class="w3-modal-content w3-round-medium">
             <header class="w3-container w3-amber mo-shadow">
                 <h4 class="mo-font-darkblue">CARICATORI</h4>
-                <span class="w3-button w3-large mo-font-darkblue w3-display-topright" onclick="Search_Close();">&times;</span>
+                <span class="w3-btn w3-large eraser-icon mo-font-darkblue" onclick="$(this).parent().parent().find('input.filtro').val('').focus().select().trigger($.Event('keyup', {which: 13}))">
+                    <i class="fa fa-solid fa-eraser"></i>
+                </span>
+                <span class="w3-btn w3-large font25bold  mo-font-darkblue w3-display-middleright" onclick="Search_Close();">&times;</span>
             </header>
             <div class="w3-container">
                 <input filterkey="Search_DOCaricatore" type="text" class="filtro mo-search mo-mt-4 w3-input" placeholder="Cerca..." style="border: 1px solid #5199ff !important;" />
@@ -2582,7 +2773,10 @@
         <div class="w3-modal-content w3-round-medium">
             <header class="w3-container w3-amber mo-shadow">
                 <h4 class="mo-font-darkblue">SPEDIZIONI</h4>
-                <span class="w3-button w3-large mo-font-darkblue w3-display-topright" onclick="Search_Close();">&times;</span>
+                <span class="w3-btn w3-large eraser-icon mo-font-darkblue" onclick="$(this).parent().parent().find('input.filtro').val('').focus().select().trigger($.Event('keyup', {which: 13}))">
+                    <i class="fa fa-solid fa-eraser"></i>
+                </span>
+                <span class="w3-btn w3-large font25bold  mo-font-darkblue w3-display-middleright" onclick="Search_Close();">&times;</span>
             </header>
             <div class="w3-container">
                 <input filterkey="Search_xMOCodSpe" type="text" class="filtro mo-search mo-mt-4 w3-input" placeholder="Cerca..." style="border: 1px solid #5199ff !important;" />
@@ -2608,7 +2802,10 @@
         <div class="w3-modal-content w3-round-medium">
             <header class="w3-container w3-amber mo-shadow">
                 <h4 class="mo-font-darkblue">UM</h4>
-                <span class="w3-button w3-large mo-font-darkblue w3-display-topright" onclick="Search_Close();">&times;</span>
+                <span class="w3-btn w3-large eraser-icon mo-font-darkblue" onclick="$(this).parent().parent().find('input.filtro').val('').focus().select().trigger($.Event('keyup', {which: 13}))">
+                    <i class="fa fa-solid fa-eraser"></i>
+                </span>
+                <span class="w3-btn w3-large font25bold  mo-font-darkblue w3-display-middleright" onclick="Search_Close();">&times;</span>
             </header>
             <div class="w3-container">
                 <input filterkey="Search_ARARMisura" type="text" class="filtro mo-search mo-mt-4 w3-input" placeholder="Cerca..." style="border: 1px solid #5199ff !important;" />
@@ -2626,8 +2823,11 @@
     <div id="SearchxListaCarico" class="w3-modal mo-zindex-2001">
         <div class="w3-modal-content w3-round-medium">
             <header class="w3-container w3-amber mo-shadow">
-                <h4 class="mo-font-darkblue">LISTE DI CARICO</h4>
-                <span class="w3-button w3-large mo-font-darkblue w3-display-topright" onclick="Search_Close();">&times;</span>
+                <h4 class="mo-font-darkblue truncate-text">LISTE DI CARICO</h4>
+                <span class="w3-btn w3-large eraser-icon mo-font-darkblue" onclick="$(this).parent().parent().find('input.filtro').val('').focus().select().trigger($.Event('keyup', {which: 13}))">
+                    <i class="fa fa-solid fa-eraser"></i>
+                </span>
+                <span class="w3-btn w3-large font25bold  mo-font-darkblue w3-display-middleright" onclick="Search_Close();">&times;</span>
             </header>
             <div class="w3-container">
                 <input filterkey="Search_xListaCarico" type="text" class="filtro mo-search mo-mt-4 w3-input" placeholder="Cerca..." style="border: 1px solid #5199ff !important;" />
@@ -2648,14 +2848,12 @@
         </div>
     </div>
 
-
-
     <%-- #4.00 DetailCF --%>
     <div id="DetailCF" class="w3-modal">
         <div class="w3-modal-content w3-round-medium" style="width: 70%;">
             <header class="w3-container mo-light-blue mo-shadow">
                 <h4 class="cd-cf mo-bold w3-large w3-text-white"></h4>
-                <span onclick="$('#DetailCF').hide();" class="w3-button w3-large w3-text-white w3-display-topright">&times;</span>
+                <span onclick="$('#DetailCF').hide();" class="w3-button w3-large w3-text-white font25bold w3-display-middleright">&times;</span>
             </header>
             <div class="w3-container">
                 <div class="w3-row w3-section">
@@ -2676,7 +2874,7 @@
         <div class="w3-modal-content w3-round-medium" style="width: 70%;">
             <header class="w3-container mo-light-blue mo-shadow">
                 <h4 class="cd-cfdest w3-large w3-text-white"></h4>
-                <span onclick="$('#DetailCFDest').hide();" class="w3-button w3-large w3-text-white w3-display-topright">&times;</span>
+                <span onclick="$('#DetailCFDest').hide();" class="w3-button w3-large w3-text-white font25bold w3-display-middleright">&times;</span>
             </header>
             <div class="w3-container">
                 <div class="div-indirizzo w3-row w3-section">
@@ -2709,7 +2907,7 @@
         <div class="w3-modal-content w3-round-medium">
             <header class="w3-container w3-amber mo-shadow">
                 <h6 class="mo-font-darkblue">GIACENZA</h6>
-                <span class="w3-button w3-large mo-font-darkblue w3-display-topright" onclick="HideAndFocus('DetailARGiacenza');">&times;</span>
+                <span class="w3-button w3-large font25bold mo-font-darkblue w3-display-topright" onclick="HideAndFocus('DetailARGiacenza');">&times;</span>
             </header>
             <div class="w3-container">
                 <select class="mo-select mo-mt-4" style="width: 100%; padding: 6px 4px;" onchange="Articolo_Giac_Filter();">
@@ -2748,7 +2946,7 @@
         <div class="w3-modal-content w3-round-medium">
             <header class="w3-container w3-amber mo-shadow">
                 <h4 class="mo-font-darkblue">BARCODE</h4>
-                <span class="w3-button w3-large mo-font-darkblue w3-display-topright" onclick="oPrg.BC.Detail_Close()">&times;</span>
+                <span class="w3-button w3-large font25bold  mo-font-darkblue w3-display-middleright" onclick="oPrg.BC.Detail_Close()">&times;</span>
             </header>
             <div class="w3-container">
                 <div>
@@ -2790,7 +2988,7 @@
         <div class="w3-modal-content w3-round-medium">
             <header class="w3-container w3-amber mo-shadow">
                 <h4 class="doc-numero mo-font-darkblue"></h4>
-                <span class="w3-button w3-large mo-font-darkblue w3-display-topright" onclick="HideAndFocus('DetailDO');">&times;</span>
+                <span class="w3-button w3-large font25bold  mo-font-darkblue w3-display-middleright" onclick="HideAndFocus('DetailDO');">&times;</span>
             </header>
             <div class="w3-container" style="font-size: 0.8em;">
                 <div class="mo-font-darkblue">
@@ -2861,7 +3059,7 @@
         <div class="w3-modal-content w3-round-medium">
             <header class="w3-container w3-amber mo-shadow">
                 <h4 class="mo-font-darkblue">LETTURE</h4>
-                <span class="w3-button w3-large mo-font-darkblue w3-display-topright" onclick="HideAndFocus('Detail_Letture');">&times;</span>
+                <span class="w3-button w3-large font25bold  mo-font-darkblue w3-display-middleright" onclick="HideAndFocus('Detail_Letture');">&times;</span>
             </header>
             <div class="w3-container">
                 <ul class="w3-ul">
@@ -2929,11 +3127,11 @@
         <div class="w3-modal-content w3-round-medium">
             <header class="w3-container w3-amber mo-shadow">
                 <h4 class="mo-font-darkblue">PACKING LIST</h4>
-                <span class="w3-button w3-large mo-font-darkblue w3-display-topright" onclick="HideAndFocus('Detail_PackingList');">&times;</span>
+                <span class="w3-button w3-large font25bold  mo-font-darkblue w3-display-middleright" onclick="HideAndFocus('Detail_PackingList');">&times;</span>
             </header>
             <div class="w3-container">
                 <div class="w3-row mo-pt-8">
-                    <div class="w3-col" style="width: 60%;">
+                    <div class="w3-col" style="width: 100%;">
                         <table class="mo-table mo-table-br">
                             <tr class="mo-font-darkblue">
                                 <th class="w3-center">NETTO</th>
@@ -2947,7 +3145,24 @@
                             </tr>
                         </table>
                     </div>
-                    <div class="w3-col mo-pt-8" style="width: 40%;">
+                    <div style="margin-top: 56px; text-align: right; padding-right: 3px;">
+                        <div style="display: inline-block">
+                            <label class="switch">
+                                <input class="ck-pkpesi" type="checkbox" onclick="DetailPackinList_OnOffPesi($(this));" />
+                                <span class="slider"></span>
+                            </label>
+                            <label class="mo-font-darkblue w3-large w3-left w3-margin-right">Pesi:</label>
+
+                        </div>
+                        <div style="display: inline-block">
+                            <label class="switch">
+                                <input class="ck-visualsing" type="checkbox" onclick="DetailPackinList_Visualizzazione($(this));" />
+                                <span class="slider"></span>
+                            </label>
+                            <label class="mo-font-darkblue w3-large w3-left w3-margin-right">Modifica:</label>
+                        </div>
+                    </div>
+                    <%-- <div class="w3-col mo-pt-8" style="width: 40%;">
                         <div class="w3-row w3-right">
                             <label class="switch">
                                 <input class="ck-pkpesi" type="checkbox" onclick="DetailPackinList_OnOffPesi($(this));" />
@@ -2955,27 +3170,27 @@
                             </label>
                             <label class="mo-font-darkblue w3-large w3-left w3-margin-right">Pesi:</label>
                         </div>
-                    </div>
+                    </div>--%>
                 </div>
-                <div class="w3-row w3-right">
+                <%--<div class="w3-row w3-right">
                     <label class="switch">
                         <input class="ck-visualsing" type="checkbox" onclick="DetailPackinList_Visualizzazione($(this));" />
                         <span class="slider"></span>
                     </label>
                     <label class="mo-font-darkblue w3-large w3-left w3-margin-right">Visualizzazione singola:</label>
-                </div>
+                </div>--%>
                 <div class="mo-mb-4">
                     <table class="pk-all" border="0" style="border-collapse: collapse; width: 100%;">
                         <tr class="w3-amber">
                             <th>Unità logica</th>
-                            <th>QTA. TOT.</th>
+                            <th>QTA.</th>
                             <th>NETTO</th>
                             <th>LORDO</th>
                             <th>V</th>
                         </tr>
                         <tr class="w3-amber">
                             <th></th>
-                            <th></th>
+                            <th>TOT.</th>
                             <th>[kg]</th>
                             <th>[kg]</th>
                             <th>[m3]</th>
@@ -3023,7 +3238,7 @@
         <div class="w3-modal-content w3-round-medium">
             <header class="w3-container w3-amber mo-shadow">
                 <h4 class="mo-font-darkblue">BARCODE</h4>
-                <span class="w3-button w3-large mo-font-darkblue w3-display-topright" onclick="$('#Detail_MultiBarcode').hide();">&times;</span>
+                <span class="w3-button w3-large font25bold  mo-font-darkblue w3-display-middleright" onclick="$('#Detail_MultiBarcode').hide();">&times;</span>
             </header>
             <div class="w3-container">
                 <div class="mo-mt-4">
@@ -3049,7 +3264,7 @@
             <header class="w3-container w3-amber mo-shadow">
                 <h4 class="mo-font-darkblue">DOCUMENTI</h4>
                 <button class="w3-button w3-blue" onclick="SMRig_P_FromDocs_Load();">CARICA</button>
-                <span class="w3-button w3-large mo-font-darkblue w3-display-topright" onclick="HideAndFocus('Detail_SMDocs');">&times;</span>
+                <span class="w3-button w3-large font25bold  mo-font-darkblue w3-display-middleright" onclick="HideAndFocus('Detail_SMDocs');">&times;</span>
             </header>
             <div class="w3-container">
                 <%-- UL dei documenti --%>
@@ -3080,7 +3295,7 @@
         <div class="w3-modal-content w3-round-medium">
             <header class="w3-container w3-amber mo-shadow">
                 <h4 class="mo-font-darkblue">GIACENZA</h4>
-                <span class="w3-button w3-large mo-font-darkblue w3-display-topright" onclick="HideAndFocus('DetailUBIGiacenza');">&times;</span>
+                <span class="w3-button w3-large font25bold  mo-font-darkblue w3-display-middleright" onclick="HideAndFocus('DetailUBIGiacenza');">&times;</span>
             </header>
             <div class="w3-container">
                 <table class="mo-table w3-table mo-mt-4">
@@ -3128,7 +3343,7 @@
     </div>
 
     <%-- #5.00 PopupMsg --%>
-    <div id="PopupMsg" class="w3-modal mo-zindex-2002">
+    <div id="PopupMsg" class="w3-modal mo-zindex-2010">
         <div class="w3-modal-content w3-animate-zoom w3-card-4">
             <header class="w3-container mo-light-blue mo-shadow" style="height: 40px;">
                 <span class="w3-right w3-xlarge w3-text-white mo-pointer" onclick="HideAndFocus('PopupMsg');">&times;</span>
@@ -3162,7 +3377,7 @@
     </div>
 
     <%-- #5.02 Popup_Del_Lettura (CONFERMA ELIMINAZIONE LETTURA) --%>
-    <div id="Popup_Del_Lettura" class="w3-modal mo-zindex-2002">
+    <div id="Popup_Del_Lettura" class="w3-modal mo-zindex-2010">
         <div class="w3-modal-content w3-animate-zoom w3-card-4">
             <header class="w3-container mo-light-blue mo-shadow" style="height: 40px;">
                 <span class="mo-pointer w3-xlarge w3-right w3-text-white" onclick="$('#Popup_Del_Lettura').hide();">&times;</span>
@@ -3179,7 +3394,7 @@
     </div>
 
     <%-- #5.03 Popup_Delete_Last_Read (CONFERMA ELIMINAZIONE DELL'ULTIMA LETTURA) --%>
-    <div id="Popup_Delete_Last_Read" class="w3-modal mo-zindex-2002">
+    <div id="Popup_Delete_Last_Read" class="w3-modal mo-zindex-2010">
         <div class="w3-modal-content w3-animate-zoom w3-card-4">
             <header class="w3-container mo-light-blue mo-shadow" style="height: 40px;">
                 <span class="mo-pointer w3-xlarge w3-right w3-text-white" onclick="HideAndFocus('Popup_Delete_Last_Read');">&times;</span>
@@ -3349,6 +3564,47 @@
                 <div class="w3-row w3-margin w3-center">
                     <button class="w3-button w3-round-medium w3-large w3-green" onclick="SMRig_A_DeleteIt($('#Popup_SMRig_A_Del').attr('Id_xMOTRRig_A'));">CONFERMA</button>
                     <button class="w3-button w3-round-medium w3-large w3-blue" onclick="HideAndFocus('Popup_SMRig_A_Del');">ANNULLA</button>
+                </div>
+            </div>
+        </div>
+    </div>
+
+    <%--#5.12 Popup_UserPref (elenco preferenze utente)--%>
+    <div id="Popup_UserPref" class="w3-modal mo-zindex-2002">
+        <div class="w3-modal-content w3-animate-zoom w3-card-4">
+            <header class="w3-container mo-light-blue mo-shadow" style="height: 40px;">
+                <span class="mo-pointer w3-xlarge w3-right w3-text-white" onclick="HideAndFocus('Popup_UserPref');">&times;</span>
+                <label class="w3-text-white w3-xlarge mo-bold">PREFERENZE</label>
+            </header>
+            <div class="w3-container " style="padding: 10px !important;">
+                <label>Altezza elenco articoli in letture</label>
+                <input data-up="altezzaLetture" class="w3-large w3-margin-right w3-input w3-border" style="width: 100px; text-align: right;" type="number" min="100" max="600" value="150" /><span> px</span>
+            </div>
+            <div class="w3-container w3-margin w3-padding-16 mo-ofy-auto">
+                <div class="w3-row w3-margin w3-center">
+                    <button class="w3-button w3-round-medium w3-large w3-green" onclick="UserPref_Save();">CONFERMA</button>
+                    <button class="w3-button w3-round-medium w3-large w3-blue" onclick="HideAndFocus('Popup_UserPref');">ANNULLA</button>
+                </div>
+            </div>
+        </div>
+    </div>
+
+    <%-- #5.70 Popup_BC_Select --%>
+    <div id="Popup_BC_Select" class="w3-modal lg-zindex-202">
+        <div class="w3-modal-content lg-mw-500">
+            <div class="w3-yellow" style="height: 4px;">
+            </div>
+            <div class="w3-container w3-margin-top">
+                <div class="w3-row w3-centered">
+                    <div class="we-col s12">
+                        <label class="lg-popuptitle lg-mt-5 w3-margin-right">Seleziona Barcode</label>
+                        <ol data-key="BarcodeList"></ol>
+                    </div>
+                </div>
+                <div class="w3-row w3-margin-top w3-margin-bottom">
+                    <div class="w3-col w3-center ">
+                        <button class="lg-btn-white">Chiudi</button>
+                    </div>
                 </div>
             </div>
         </div>

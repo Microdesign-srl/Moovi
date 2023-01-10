@@ -243,6 +243,26 @@ a {
     color: inherit
 }
 
+.w3-text-underline {
+    text-decoration: 2px underline solid;
+}
+
+.w3-text-underline-green {
+    text-decoration-color: #4CAF50 !important;
+}
+
+.w3-text-underline-orange {
+    text-decoration-color: #ff9800 !important;
+}
+
+.w3-text-underline-blue {
+    text-decoration-color: #2196F3 !important;
+}
+
+.w3-ml-2 {
+    margin-left: calc(5px * 2) !important
+}
+
 .w3-table, .w3-table-all {
     border-collapse: collapse;
     border-spacing: 0;
@@ -793,7 +813,7 @@ a {
     }
 
     .w3-modal {
-        padding-top: 50px
+        /*padding-top: 50px*/
     }
 }
 
@@ -869,6 +889,13 @@ a {
     position: absolute;
     right: 0;
     top: 0
+}
+
+.w3-display-middleright {
+    /* usato per le x (di chiusura) nelle modal di ricerca per alinearle con il pulsante erase */
+    position: absolute;
+    right: 0;
+    top: 5px
 }
 
 .w3-display-bottomleft {

@@ -2,8 +2,6 @@
       Moovi.js
       Contiene tutte le funzioni e gli oggetti della pagina moovi.aspx
 
-      Ver. 0.0.1016 Del 30/10/2018
-
         #1.00 REGION: FUNZIONI BASE
         #1.10 REGION: CHIAMATE AJAX
             #1.11 AJAX SEARCH
@@ -24,12 +22,29 @@
         #2.50 REGION: STOCCAGGIO MERCE
 */
 
+
+
 // -------------------------------------------------
 // #1.00 REGION: FUNZIONI BASE
 // -------------------------------------------------
 
+
+
+
+//$(document).ready(function () {
+//    registerBrowserDataSession(); // in Global.js
+//});
+
 // Init di Moovi.aspx
 function Init() {
+
+    // Fondamentale per ajaxCall ed ajaxCallSync in ajax.js per capire da dove provengo!
+    window.baseUrl = "Moovi.aspx"
+
+    // Carica gli oggetti del local e session storage
+    DataSession_Load();
+
+    Init_SettingsTAG();
 
     Media_Query();
 
@@ -38,7 +53,9 @@ function Init() {
 
     // Carico la variabile oApp
     // ATTENZIONE la variabile oAPP va subito testata se nulla (non è possibile testarne i valori delle var interne)
-    oApp = fU.GetSession("oApp");
+    // oApp = fU.GetSession("oApp");
+    oApp = oSessionStorage.get("oApp");
+
     if (fU.IsNull(oApp)) {
         //oApp non valida: esco al log-in
         location.assign("default.htm");
@@ -59,6 +76,9 @@ function Init() {
     // Al resize della finestra browser chiama la funzione di media query
     $(window).resize(function () {
         Media_Query();
+        // nascondo la prima riga della tabella delle rilevazioni
+        $('tbody tr.template_ARDesc').first().hide();
+
     });
 
     // Allo scroll della pagina visulizza il bottone per tornare al top page se esistente nella pagina attiva
@@ -135,6 +155,8 @@ function Init() {
                 PopupMsg_Show("Messaggio", "1", "Identificativo del menù non gestito!! " + $(this).attr("id"));
                 break;
         }
+
+
     });
 
     //// Binda l'evento invio a tutti i campi (non funziona)
@@ -299,6 +321,10 @@ function Init() {
         Nav.NavbarShowIf(false, false);
     });
 
+    $("#pgRLPK :input[name='PesoNettoMks'], #pgRLPK :input[name='PesoLordoMks']").on("change", function (e) {
+        oLocalStorage.set("pgRLPK_lastPesoInput", e.target.name);
+    });
+
     $(".detail-pklist").on("click", function () {
         // Carico il detail in base al tipo di visualiuzzazione attivo
         if (fU.IsChecked($("#Detail_PackingList .ck-visualsing")))
@@ -306,6 +332,12 @@ function Init() {
         else
             Detail_Ajax_xmofn_xMORLRigPackingList_AR_GRP();
         $("#Detail_PackingList").show();
+        if ($("#Detail_PackingList .ck-visualsing").attr("checked") === 'checked') {
+            $(".pk-dati table.dati-ar tbody tr ").find("th:nth-child(1), td:nth-child(1)").show()
+        } else {
+            $(".pk-dati table.dati-ar tbody tr ").find("th:nth-child(1), td:nth-child(1)").hide()
+        }
+
     });
 
     //Gestione del toggle delle sezioni div
@@ -350,7 +382,10 @@ function Init() {
     // All'invio sul btn-confirm di pgRLRig confermo la lettura
     $("#pgRLRig .btn-confirm").keydown(function (btn) {
         if (btn.which == 13) // INVIO
+        {
             Confirm_Read(oPrg.drDO.EseguiControlli);
+            onRowCountChange();
+        }
     });
 
     //// Al click del ESC torna alla HOME ### va impostato nelle sezioni giuste!!
@@ -392,7 +427,16 @@ function Init() {
     });
 
     $("input[name='Cd_AR']").on("change", function () {
-        ARARMisura_Set("");
+        //L'articolo è cambiato: svuoto l'alias
+        $("#" + oPrg.ActivePageId + " .ar-aa").text("");
+        // Pulisce il select delle UM
+        $("#" + oPrg.ActivePageId + " select[name='Cd_ARMisura'] .op-um").remove();
+        //Dopo aver cambiato il cd_ar gestisce quantità e um
+        AR_Set_Qta_UM();
+    });
+
+    $("input[name='Cd_AR']").keydown(function () {
+        $(".div-giac").css("display", "none")
     });
 
     // Compila il campo CF e cerca il codice corrispondente
@@ -478,12 +522,72 @@ function Init() {
 
     // Vado alla home page
     GoHome();
+
+
 }
+
+
+function onRowCountChange() {
+    var el = $("#pgRLRig").find(".div-letture").find(".mo-ofy-auto");
+    el.attr("style", "height: " + oLocalStorage.get("altezzaLetture") + "px;");
+    if ($('#pgRLRig tbody tr').length <= 3) {
+        el.attr("style", "height: 45px;");
+    }
+}
+
+function setDisplayHeight() {
+    $("#pgRLRig :input").focusout(function () {
+        settingsModal.lastFocusedInput = $(this);
+    })
+    onRowCountChange();
+};
+
+/*
+    Diverse pers.
+ */
+
+
+// pers. per Varsya 20220426
+function showFor_W44716() {
+    var W44716 = 44716; // per fare le prove sostituire con il proprio nuero di licenza
+    if (oApp.LicF_Id == W44716 && (ActivePage().attr('id') == "pgRLRig")) {
+        ActivePage().find("th.Cd_MGUbicazione, td.Cd_MGUbicazione").removeClass("display-none");
+    }
+}
+
+// pers. per IT Consulting (SEM)
+function checkMATBarcode(barcode) {
+
+    switch (Number(oApp.LicF_Id)) {
+        case 61812: // (Gruppo Sem, sono attive 4 ditte)
+        case 81047: // (Water Time, 1 ditta)
+        case 33076:
+            if (oPrg.BC.CurrentBC && oPrg.BC.CurrentBC.Cd_xMOBC == "MAT" && barcode.length > 18) {
+                var msg = 'Troppi caratteri nel barcode letto. \n';
+                msg += 'Il barcode del tipo ' + oPrg.BC.CurrentBC.Descrizione + ' non può superare 18 caratteri!';
+
+                alert(msg);
+
+                return false;
+            }
+            return true;
+            break;
+        default:
+            return true;
+    }
+    return false;
+
+}
+
+/*
+    END Diverse pers.
+ */
 
 // Logout
 function LogOff() {
     oApp.Logon = false;
-    fU.SetSession(oApp);
+    //fU.SetSession(oApp);
+    oSessionStorage.set("oApp", oApp);
     location.assign("default.htm");
 }
 
@@ -740,7 +844,7 @@ function Search_Open(icon) {
     oPrg.ActiveSearchOutField = searchkey; //Memorizzo la serchkey del campo
 
     //Valore presente nel campo di output di ricerca
-    var searchvalue = fU.ToString($("#" + oPrg.ActivePageId).find("input[name='" + searchkey + "']").val())
+    var searchvalue = fU.ToString($("#" + oPrg.ActivePageId).find("input[name='" + searchkey + "']").val()).trim()
     //Se il campo di ricerca è pieno lo inserisce in modo da scatenare la selezione del valore
     oPrg.ActiveSearchValue = searchvalue;
 
@@ -754,7 +858,7 @@ function Search_Open(icon) {
             else if (oPrg.drDO.CliFor == 'C') $("#SearchCF .title").text("CLIENTI");
             else if (oPrg.drDO.CliFor == 'F') $("#SearchCF .title").text("FORNITORI");
             else $("#SearchCF .title").text("?? CF ??");
-            if (oPrg.Key != 'AA') {
+            if (oPrg.Key != 'AA' && oPrg.drDO) {
                 switch (oPrg.drDO.xMOPrelievo) {
                     case 0:
                         $("#SearchCF .title").append(" (senza Prelievo)");
@@ -838,7 +942,7 @@ function Search_Close(itemsel) {
         switch (oPrg.ActiveSearchId) {
             case 'SearchCF':
                 //Assegna il CF
-                $("#" + oPrg.ActivePageId + " input[name='" + oPrg.ActiveSearchOutField + "']").val(itemsel.attr("Cd_CF")).focus();
+                $("#" + oPrg.ActivePageId + " input[name='" + oPrg.ActiveSearchOutField + "']").val(itemsel.attr("Cd_CF")).focus().select();
                 $("#" + oPrg.ActivePageId + " label[name='CF_Descrizione']").text(itemsel.attr("Descrizione"));
                 //Gestione del CFDest
                 // Show del campo SO se ci sono destinazioni per il cliente selezionato
@@ -848,32 +952,32 @@ function Search_Close(itemsel) {
                 $("#" + oPrg.ActivePageId + " label[name='CFDest_Descrizione']").text(fU.ToString(itemsel.attr("CFDest_Descrizione")));
                 break;
             case 'SearchCFDest':
-                $("#" + oPrg.ActivePageId + " input[name='" + oPrg.ActiveSearchOutField + "']").val(fU.ToString(itemsel.attr("Cd_CFDest"))).focus();
+                $("#" + oPrg.ActivePageId + " input[name='" + oPrg.ActiveSearchOutField + "']").val(fU.ToString(itemsel.attr("Cd_CFDest"))).focus().select();
                 $("#" + oPrg.ActivePageId + " label[name='CFDest_Descrizione']").text(fU.ToString(itemsel.attr("Descrizione")));
                 $("#" + oPrg.ActivePageId + " input[name='Cd_CF']").val(fU.ToString(fU.ToString(itemsel.attr("Cd_CF"))));
                 $("#" + oPrg.ActivePageId + " label[name='CF_Descrizione']").text(fU.ToString(itemsel.attr("CF_Descrizione")));
                 break;
             case 'SearchAR':
                 $("#" + oPrg.ActivePageId + " select[name='Cd_ARMisura'] .op-um").remove();
-                $("#" + oPrg.ActivePageId + " input[name='" + oPrg.ActiveSearchOutField + "']").val(itemsel.attr("Cd_AR")).focus();
+                $("#" + oPrg.ActivePageId + " input[name='" + oPrg.ActiveSearchOutField + "']").val(itemsel.attr("Cd_AR")).focus().select();
                 $("#" + oPrg.ActivePageId + " input[name='" + oPrg.ActiveSearchOutField + "']").attr("AR_Desc", itemsel.attr("AR_Desc"));
                 $("#" + oPrg.ActivePageId + " input[name='Quantita']").focus().select();
                 break;
             case 'SearchMG':
                 //Assegna il valore del magazzino selezionato
-                $("#" + oPrg.ActivePageId + " input[name='" + oPrg.ActiveSearchOutField + "']").val(itemsel.attr("Cd_MG")).focus();
+                $("#" + oPrg.ActivePageId + " input[name='" + oPrg.ActiveSearchOutField + "']").val(itemsel.attr("Cd_MG")).focus().select();
                 //Assegna l'etichetta come il valore del magazzino selezionato 
                 $("#" + oPrg.ActivePageId + " ." + oPrg.ActiveSearchOutField.toLowerCase()).text(itemsel.attr("Cd_MG"));
                 break;
             case 'SearchMGUbicazione':
-                $("#" + oPrg.ActivePageId + " input[name='" + oPrg.ActiveSearchOutField + "']").val(itemsel.attr("Cd_MGUbicazione")).focus();
+                $("#" + oPrg.ActivePageId + " input[name='" + oPrg.ActiveSearchOutField + "']").val(itemsel.attr("Cd_MGUbicazione")).focus().select();
                 //Discrimina se il magazzino è quello di partenza, di arrivo o un codice Cd_MG per assegnare il valore corretto
                 var mgPA = fMG.Mg4PA(oPrg.ActiveSearchOutField);
                 $("#" + oPrg.ActivePageId + " input[name='Cd_MG" + mgPA + "']").val(itemsel.attr("Cd_MG"));
                 break;
             case 'SearchARLotto':
-                $("#" + oPrg.ActivePageId + " input[name='" + oPrg.ActiveSearchOutField + "']").val(itemsel.attr("Cd_ARLotto")).focus();
-                $("#" + oPrg.ActivePageId + " input[name='Cd_AR']").val(itemsel.attr("Cd_AR"));
+                $("#" + oPrg.ActivePageId + " input[name='" + oPrg.ActiveSearchOutField + "']").val(itemsel.attr("Cd_ARLotto")).focus().select();
+                $("#" + oPrg.ActivePageId + " input[name='Cd_AR']").val(itemsel.attr("Cd_AR")).change();
                 if ($("#" + oPrg.ActivePageId + " input[name='Cd_MG_P']").is(":visible") && fU.IsEmpty($("#" + oPrg.ActivePageId + " input[name='Cd_MG_P']").val())) {
                     $("#" + oPrg.ActivePageId + " input[name='Cd_MG_P']").val(itemsel.attr("Cd_MG"));
                     $("#" + oPrg.ActivePageId + " input[name='Cd_MGUbicazione_P']").val(itemsel.attr("Cd_MGUbicazione"));
@@ -884,14 +988,14 @@ function Search_Close(itemsel) {
                 }
                 break;
             case 'SearchDOSottoCommessa':
-                $("#" + oPrg.ActivePageId + " input[name='" + oPrg.ActiveSearchOutField + "']").val(itemsel.attr("Cd_DOSottoCommessa")).focus();
+                $("#" + oPrg.ActivePageId + " input[name='" + oPrg.ActiveSearchOutField + "']").val(itemsel.attr("Cd_DOSottoCommessa")).focus().select();
                 break;
             case 'SearchDOCaricatore':
-                $("#" + oPrg.ActivePageId + " input[name='" + oPrg.ActiveSearchOutField + "']").val(itemsel.attr("Cd_DOCaricatore")).focus();
+                $("#" + oPrg.ActivePageId + " input[name='" + oPrg.ActiveSearchOutField + "']").val(itemsel.attr("Cd_DOCaricatore")).focus().select();
                 $("#" + oPrg.ActivePageId + " label[name='CRDescrizione']").text(fU.ToString(itemsel.attr("Desc")));
                 break;
             case "SearchxMOCodSpe":
-                $("#" + oPrg.ActivePageId + " input[name='" + oPrg.ActiveSearchOutField + "']").val(itemsel.attr("Cd_xMOCodSpe")).focus();
+                $("#" + oPrg.ActivePageId + " input[name='" + oPrg.ActiveSearchOutField + "']").val(itemsel.attr("Cd_xMOCodSpe")).focus().select();
                 Spedizione_Filter(itemsel.attr("Cd_xMOCodSpe"));
                 break;
             case "SearchxListaCarico":
@@ -913,7 +1017,8 @@ function Search_Close(itemsel) {
     $("#" + oPrg.ActiveSearchId).hide();
     $("#" + oPrg.ActiveSearchId + " .li-search").remove();
     //SetFocus();
-    Find_Next_Tabindex();
+    if (oPrg.ActiveSearchId !== "SearchAR") // da rivedere con Marco
+        Find_Next_Tabindex();
 }
 
 // -------------------------------------------------
@@ -930,29 +1035,20 @@ function Ajax_xmofn_DOAperti() {
 
     $("#pgDocAperti .li-doc").remove();
 
-    Params = JSON.stringify({
-        Terminale: oApp.Terminale,
-        Cd_Operatore: oApp.Cd_Operatore,
-        Filtro: $("#pgDocAperti .filtro").val()
-    });
-
-    $.ajax({
-        url: "Moovi.aspx/xmofn_DOAperti",
-        async: false,
-        data: Params,
-        type: "POST",
-        dataType: "json",
-        contentType: "application/json; charset=utf-8",
-        success: function (mydata) {
+    ajaxCallSync(
+        "/xmofn_DOAperti",
+        {
+            Terminale: oApp.Terminale,
+            Cd_Operatore: oApp.Cd_Operatore,
+            Filtro: $("#pgDocAperti .filtro").val()
+        },
+        function (mydata) {
             var dt = $.parseJSON(mydata.d);
             oPrg.DA = dt;
             DOAperti_Load(dt);
             out = true;
-        },
-        error: function (XMLHttpRequest, textStatus, errorThrown) {
-            Ajax_ErrOut(XMLHttpRequest, textStatus, errorThrown);
         }
-    });
+    );
 
     return out;
 }
@@ -964,28 +1060,20 @@ function Ajax_xmofn_DORistampa() {
 
     $("#pgDocRistampa .li-doc").remove();
 
-    Params = JSON.stringify({
-        Terminale: oApp.Terminale,
-        Cd_Operatore: oApp.Cd_Operatore,
-        Filtro: $("#pgDocRistampa .filtro").val()
-    });
-
-    $.ajax({
-        url: "Moovi.aspx/xmofn_DORistampa",
-        async: false,
-        data: Params,
-        type: "POST",
-        dataType: "json",
-        contentType: "application/json; charset=utf-8",
-        success: function (mydata) {
+    ajaxCallSync(
+        "/xmofn_DORistampa",
+        {
+            Terminale: oApp.Terminale,
+            Cd_Operatore: oApp.Cd_Operatore,
+            Filtro: $("#pgDocRistampa .filtro").val()
+        },
+        function (mydata) {
             var dt = $.parseJSON(mydata.d);
             DORistampa_Load(dt);
+
             out = true;
-        },
-        error: function (XMLHttpRequest, textStatus, errorThrown) {
-            Ajax_ErrOut(XMLHttpRequest, textStatus, errorThrown);
         }
-    });
+    );
 
     return out;
 }
@@ -995,23 +1083,17 @@ function Ajax_xmosp_xMOConsumo_Save() {
 
     var out = false;
 
-    Params = JSON.stringify({
-        Terminale: oApp.Terminale,
-        Cd_Operatore: oApp.Cd_Operatore,
-        Cd_xMOLinea: $("#pgAvviaConsumo select[name='Cd_xMOLinea'] option:selected").val(),
-        DataOra: $("#pgAvviaConsumo input[name='DataOra']").val(),
-        Cd_AR: $("#pgAvviaConsumo input[name='Cd_AR']").val(),
-        Cd_ARLotto: $("#pgAvviaConsumo input[name='Cd_ARLotto']").val()
-    });
-
-    $.ajax({
-        url: "Moovi.aspx/xmosp_xMOConsumo_Save",
-        async: false,
-        data: Params,
-        type: "POST",
-        dataType: "json",
-        contentType: "application/json; charset=utf-8",
-        success: function (mydata) {
+    ajaxCallSync(
+        "/xmosp_xMOConsumo_Save",
+        {
+            Terminale: oApp.Terminale,
+            Cd_Operatore: oApp.Cd_Operatore,
+            Cd_xMOLinea: $("#pgAvviaConsumo select[name='Cd_xMOLinea'] option:selected").val(),
+            DataOra: fU.DateTimeToSql($("#pgAvviaConsumo input[name='DataOra']").val()),
+            Cd_AR: $("#pgAvviaConsumo input[name='Cd_AR']").val(),
+            Cd_ARLotto: $("#pgAvviaConsumo input[name='Cd_ARLotto']").val()
+        },
+        function (mydata) {
             if (mydata.d != '') {
                 var r = $.parseJSON(mydata.d);
                 if (r[0].Result < 0)
@@ -1023,11 +1105,8 @@ function Ajax_xmosp_xMOConsumo_Save() {
                     out = true;
                 }
             }
-        },
-        error: function (XMLHttpRequest, textStatus, errorThrown) {
-            Ajax_ErrOut(XMLHttpRequest, textStatus, errorThrown);
         }
-    });
+    );
 
     return out;
 }
@@ -1036,30 +1115,21 @@ function Ajax_xmosp_xMOConsumo_Save() {
 function Ajax_xmosp_xMOConsumoFromRL_Save() {
     var out = false;
 
-    Params = JSON.stringify({
-        Terminale: oApp.Terminale,
-        Cd_Operatore: oApp.Cd_Operatore,
-        Id_xMORL: oPrg.Id_xMORL_Edit
-    });
-
-    $.ajax({
-        url: "Moovi.aspx/xmosp_xMOConsumoFromRL_Save",
-        async: false,
-        data: Params,
-        type: "POST",
-        dataType: "json",
-        contentType: "application/json; charset=utf-8",
-        success: function (mydata) {
+    ajaxCallSync(
+        "/xmosp_xMOConsumoFromRL_Save",
+        {
+            Terminale: oApp.Terminale,
+            Cd_Operatore: oApp.Cd_Operatore,
+            Id_xMORL: oPrg.Id_xMORL_Edit
+        },
+        function (mydata) {
             var r = $.parseJSON(mydata.d);
             if (r[0].Result < 0)
                 PopupMsg_Show("ERRORE", r[0].Result, r[0].Messaggio);
             else
                 out = true;
-        },
-        error: function (XMLHttpRequest, textStatus, errorThrown) {
-            Ajax_ErrOut(XMLHttpRequest, textStatus, errorThrown);
         }
-    });
+    );
 
     return out;
 }
@@ -1072,30 +1142,24 @@ function Ajax_xmosp_xMORL_Save() {
     //Reset della riga di testa delle rilevazioni
     oPrg.drRL = null;
 
-    Params = JSON.stringify({
-        Cd_Operatore: oApp.Cd_Operatore,
-        Terminale: oApp.Terminale,
-        Cd_DO: oPrg.drDO.Cd_DO,
-        DataDoc: fU.DateToSql($("#pgRL [name='DataDoc']").val()),
-        Cd_CF: $("#pgRL [name='Cd_CF']").val(),
-        Cd_CFDest: $("#pgRL [name='Cd_CFDest']").val(),
-        Cd_xMOLinea: ($("#pgRL [name='Cd_xMOLinea']").is(":visible") == true ? $("#pgRL [name='Cd_xMOLinea'] option:selected").val() : ''),
-        NumeroDocRif: $("#pgRL [name='NumeroDocRif']").val(),
-        DataDocRif: fU.DateToSql($("#pgRL [name='DataDocRif']").val()),
-        Cd_MG_P: fU.ToString($("#pgRL [name='Cd_MG_P']").val()),
-        Cd_MG_A: fU.ToString($("#pgRL [name='Cd_MG_A']").val()),
-        Cd_DOSottoCommessa: fU.ToString($("#pgRL input[name='Cd_DOSottoCommessa']").val()),
-        Id_xMORL: fU.ToInt32(oPrg.Id_xMORL_Edit)
-    });
-
-    $.ajax({
-        url: "Moovi.aspx/xmosp_xMORL_Save",
-        async: false,
-        data: Params,
-        type: "POST",
-        dataType: "json",
-        contentType: "application/json; charset=utf-8",
-        success: function (mydata) {
+    ajaxCallSync(
+        "/xmosp_xMORL_Save",
+        {
+            Cd_Operatore: oApp.Cd_Operatore,
+            Terminale: oApp.Terminale,
+            Cd_DO: oPrg.drDO.Cd_DO,
+            DataDoc: fU.DateToSql($("#pgRL [name='DataDoc']").val()),
+            Cd_CF: $("#pgRL [name='Cd_CF']").val(),
+            Cd_CFDest: $("#pgRL [name='Cd_CFDest']").val(),
+            Cd_xMOLinea: ($("#pgRL [name='Cd_xMOLinea']").is(":visible") == true ? $("#pgRL [name='Cd_xMOLinea'] option:selected").val() : ''),
+            NumeroDocRif: $("#pgRL [name='NumeroDocRif']").val(),
+            DataDocRif: fU.DateToSql($("#pgRL [name='DataDocRif']").val()),
+            Cd_MG_P: fU.ToString($("#pgRL [name='Cd_MG_P']").val()),
+            Cd_MG_A: fU.ToString($("#pgRL [name='Cd_MG_A']").val()),
+            Cd_DOSottoCommessa: fU.ToString($("#pgRL input[name='Cd_DOSottoCommessa']").val()),
+            Id_xMORL: fU.ToInt32(oPrg.Id_xMORL_Edit)
+        },
+        function (mydata) {
             var r = $.parseJSON(mydata.d);
             if (r[0].Result > 0) {
                 //Memorizzo l'id in edit
@@ -1108,11 +1172,8 @@ function Ajax_xmosp_xMORL_Save() {
             else {
                 PopupMsg_Show("ERRORE", r[0].Result, r[0].Messaggio);
             }
-        },
-        error: function (XMLHttpRequest, textStatus, errorThrown) {
-            Ajax_ErrOut(XMLHttpRequest, textStatus, errorThrown);
         }
-    });
+    );
 
     return out;
 }
@@ -1121,27 +1182,19 @@ function Ajax_xmosp_xMORL_Save() {
 function Ajax_xmovs_xMORL() {
     var out = false;
 
-    Params = JSON.stringify({
-        Id_xMORL: fU.ToInt32(oPrg.Id_xMORL_Edit)
-    });
-
-    $.ajax({
-        url: "Moovi.aspx/xmovs_xMORL",
-        async: false,
-        data: Params,
-        type: "POST",
-        dataType: "json",
-        contentType: "application/json; charset=utf-8",
-        success: function (mydata) {
+    ajaxCallSync(
+        "/xmovs_xMORL",
+        {
+            Id_xMORL: fU.ToInt32(oPrg.Id_xMORL_Edit)
+        },
+        function (mydata) {
             //Memorizzo il record di testa RL
             var r = $.parseJSON(mydata.d);
+            //console.log("r[0] ", r[0])
             oPrg.drRL = r[0];
             out = true;
-        },
-        error: function (XMLHttpRequest, textStatus, errorThrown) {
-            Ajax_ErrOut(XMLHttpRequest, textStatus, errorThrown);
         }
-    });
+    );
 
     return out;
 }
@@ -1153,31 +1206,22 @@ function Ajax_xmofn_DOTes_Prel() {
 
     $("#pgDOPrelievi .tr-prel").remove();
 
-    Params = JSON.stringify({
-        Terminale: oApp.Terminale,
-        Cd_Operatore: oApp.Cd_Operatore,
-        Cd_DO: oPrg.drDO.Cd_DO,
-        Cd_CF: oPrg.drRL.Cd_CF,
-        Cd_CFDest: oPrg.drRL.Cd_CFDest,
-        Id_xMORL: oPrg.drRL.Id_xMORL
-    });
-
-    $.ajax({
-        url: "Moovi.aspx/xmofn_DOTes_Prel",
-        async: false,
-        data: Params,
-        type: "POST",
-        dataType: "json",
-        contentType: "application/json; charset=utf-8",
-        success: function (mydata) {
+    ajaxCallSync(
+        "/xmofn_DOTes_Prel",
+        {
+            Terminale: oApp.Terminale,
+            Cd_Operatore: oApp.Cd_Operatore,
+            Cd_DO: oPrg.drDO.Cd_DO,
+            Cd_CF: oPrg.drRL.Cd_CF,
+            Cd_CFDest: oPrg.drRL.Cd_CFDest,
+            Id_xMORL: oPrg.drRL.Id_xMORL
+        },
+        function (mydata) {
             var dt = $.parseJSON(mydata.d);
             DOPrel_Load(dt);
             out = true;
-        },
-        error: function (XMLHttpRequest, textStatus, errorThrown) {
-            Ajax_ErrOut(XMLHttpRequest, textStatus, errorThrown);
         }
-    });
+    );
 
     return out;
 }
@@ -1189,33 +1233,25 @@ function Ajax_xmofn_DOTes_Prel_4PR() {
 
     $("#pgPrelievi .li-prel").remove();
 
-    Params = JSON.stringify({
-        Terminale: oApp.Terminale,
-        Cd_Operatore: oApp.Cd_Operatore,
-        Cd_DO: fU.ToString($("#pgPrelievi input[name='Cd_DO']").val()),
-        Cd_CF: fU.ToString($("#pgPrelievi input[name='Cd_CF']").val()),
-        Cd_CFDest: fU.ToString($("#pgPrelievi input[name='Cd_CFDest']").val()),
-        DataConsegna: fU.ToString($("#pgPrelievi input[name='DataConsegna']").val()),
-        Id_DOTes: $("#pgPrelievi input[name='Id_DOTes']").val(),
-        Id_xMORL: fU.ToString(oPrg.Id_xMORL_Edit)
-    });
-
-    $.ajax({
-        url: "Moovi.aspx/xmofn_DOTes_Prel_4PR",
-        async: false,
-        data: Params,
-        type: "POST",
-        dataType: "json",
-        contentType: "application/json; charset=utf-8",
-        success: function (mydata) {
+    ajaxCallSync(
+        "/xmofn_DOTes_Prel_4PR",
+        {
+            Terminale: oApp.Terminale,
+            Cd_Operatore: oApp.Cd_Operatore,
+            Cd_DO: fU.ToString($("#pgPrelievi input[name='Cd_DO']").val()),
+            Cd_CF: fU.ToString($("#pgPrelievi input[name='Cd_CF']").val()),
+            Cd_CFDest: fU.ToString($("#pgPrelievi input[name='Cd_CFDest']").val()),
+            Cd_DOSottoCommessa: fU.ToString($("#pgPrelievi input[name='Cd_DOSottoCommessa']").val()),
+            DataConsegna: fU.ToString($("#pgPrelievi input[name='DataConsegna']").val()),
+            Id_DOTes: $("#pgPrelievi input[name='Id_DOTes']").val(),
+            Id_xMORL: fU.ToString(oPrg.Id_xMORL_Edit)
+        },
+        function (mydata) {
             var dt = $.parseJSON(mydata.d);
             DOPrel_All_Load(dt);
             out = true;
-        },
-        error: function (XMLHttpRequest, textStatus, errorThrown) {
-            Ajax_ErrOut(XMLHttpRequest, textStatus, errorThrown);
         }
-    });
+    );
 
     return out;
 }
@@ -1225,32 +1261,23 @@ function Ajax_xmosp_xMORLPrelievo_Save(Id_DOTess) {
 
     var out = false;
 
-    Params = JSON.stringify({
-        Terminale: oApp.Terminale,
-        Cd_Operatore: oApp.Cd_Operatore,
-        Id_xMORL: fU.ToInt32(oPrg.Id_xMORL_Edit),
-        Id_DOTess: Id_DOTess
-    });
-
-    $.ajax({
-        url: "Moovi.aspx/xmosp_xMORLPrelievo_Save",
-        async: false,
-        data: Params,
-        type: "POST",
-        dataType: "json",
-        contentType: "application/json; charset=utf-8",
-        success: function (mydata) {
+    ajaxCallSync(
+        "/xmosp_xMORLPrelievo_Save",
+        {
+            Terminale: oApp.Terminale,
+            Cd_Operatore: oApp.Cd_Operatore,
+            Id_xMORL: fU.ToInt32(oPrg.Id_xMORL_Edit),
+            Id_DOTess: Id_DOTess
+        },
+        function (mydata) {
             var r = $.parseJSON(mydata.d);
             if (r[0].Result < 0)
                 PopupMsg_Show("ERRORE", r[0].Result, r[0].Messaggio);
             else {
                 out = true;
             }
-        },
-        error: function (XMLHttpRequest, textStatus, errorThrown) {
-            Ajax_ErrOut(XMLHttpRequest, textStatus, errorThrown);
         }
-    });
+    );
 
     return out;
 }
@@ -1260,21 +1287,15 @@ function Ajax_xmosp_xMOSpedizione_SaveRL(Id_DOTess, Cd_DO) {
 
     var out = false;
 
-    Params = JSON.stringify({
-        Terminale: oApp.Terminale,
-        Cd_Operatore: oApp.Cd_Operatore,
-        Id_DOTess: Id_DOTess,
-        Cd_DO: Cd_DO
-    });
-
-    $.ajax({
-        url: "Moovi.aspx/xmosp_xMOSpedizione_SaveRL",
-        async: false,
-        data: Params,
-        type: "POST",
-        dataType: "json",
-        contentType: "application/json; charset=utf-8",
-        success: function (mydata) {
+    ajaxCallSync(
+        "/xmosp_xMOSpedizione_SaveRL",
+        {
+            Terminale: oApp.Terminale,
+            Cd_Operatore: oApp.Cd_Operatore,
+            Id_DOTess: Id_DOTess,
+            Cd_DO: Cd_DO
+        },
+        function (mydata) {
             var r = $.parseJSON(mydata.d);
             if (r[0].Result < 0)
                 PopupMsg_Show("ERRORE", r[0].Result, r[0].Messaggio);
@@ -1286,11 +1307,8 @@ function Ajax_xmosp_xMOSpedizione_SaveRL(Id_DOTess, Cd_DO) {
                 //Carico i dati di drRL
                 out = Ajax_xmovs_xMORL();
             }
-        },
-        error: function (XMLHttpRequest, textStatus, errorThrown) {
-            Ajax_ErrOut(XMLHttpRequest, textStatus, errorThrown);
         }
-    });
+    );
 
     return out;
 
@@ -1301,21 +1319,15 @@ function Ajax_xmosp_xListaCarico_SaveRL(Id_DOTes, Cd_DO) {
 
     var out = false;
 
-    Params = JSON.stringify({
-        Terminale: oApp.Terminale,
-        Cd_Operatore: oApp.Cd_Operatore,
-        Id_DOTes: fU.ToInt32(Id_DOTes),
-        Cd_DO: Cd_DO
-    });
-
-    $.ajax({
-        url: "Moovi.aspx/xmosp_xListaCarico_SaveRL",
-        async: false,
-        data: Params,
-        type: "POST",
-        dataType: "json",
-        contentType: "application/json; charset=utf-8",
-        success: function (mydata) {
+    ajaxCallSync(
+        "/xmosp_xListaCarico_SaveRL",
+        {
+            Terminale: oApp.Terminale,
+            Cd_Operatore: oApp.Cd_Operatore,
+            Id_DOTes: fU.ToInt32(Id_DOTes),
+            Cd_DO: Cd_DO
+        },
+        function (mydata) {
             if (mydata.d != '') {
                 var r = $.parseJSON(mydata.d);
                 if (r[0].Result < 0)
@@ -1329,11 +1341,8 @@ function Ajax_xmosp_xListaCarico_SaveRL(Id_DOTes, Cd_DO) {
                     out = Ajax_xmovs_xMORL();
                 }
             }
-        },
-        error: function (XMLHttpRequest, textStatus, errorThrown) {
-            Ajax_ErrOut(XMLHttpRequest, textStatus, errorThrown);
         }
-    });
+    );
 
     return out;
 
@@ -1341,52 +1350,35 @@ function Ajax_xmosp_xListaCarico_SaveRL(Id_DOTes, Cd_DO) {
 
 // Update Documenti Aperti
 function Ajax_delete_DocAperto(idxmorl) {
-
-    Params = JSON.stringify({
-        Terminale: oApp.Terminale,
-        Cd_Operatore: oApp.Cd_Operatore,
-        Id_xMORL: idxmorl
-    });
-    $.ajax({
-        url: "Moovi.aspx/delete_DocAperto",
-        async: false,
-        data: Params,
-        type: "POST",
-        dataType: "json",
-        contentType: "application/json; charset=utf-8",
-        success: function (mydata) {
+    ajaxCallSync(
+        "/delete_DocAperto",
+        {
+            Terminale: oApp.Terminale,
+            Cd_Operatore: oApp.Cd_Operatore,
+            Id_xMORL: idxmorl
+        },
+        function (mydata) {
             //Aggiorno la lista dei doc aperti
             Ajax_xmofn_DOAperti();
-        },
-        error: function (XMLHttpRequest, textStatus, errorThrown) {
-            Ajax_ErrOut(XMLHttpRequest, textStatus, errorThrown);
         }
-    });
+    );
 }
 
 // Delete trasferimento aperto
 function Ajax_delete_TRAperto(idxmotr) {
 
-    Params = JSON.stringify({
-        Terminale: oApp.Terminale,
-        Cd_Operatore: oApp.Cd_Operatore,
-        Id_xMOTR: idxmotr
-    });
-    $.ajax({
-        url: "Moovi.aspx/delete_TRAperto",
-        async: false,
-        data: Params,
-        type: "POST",
-        dataType: "json",
-        contentType: "application/json; charset=utf-8",
-        success: function (mydata) {
+    ajaxCallSync(
+        "/delete_TRAperto",
+        {
+            Terminale: oApp.Terminale,
+            Cd_Operatore: oApp.Cd_Operatore,
+            Id_xMOTR: idxmotr
+        },
+        function (mydata) {
             //Aggiorno la lista dei doc aperti
             Ajax_xmofn_DOAperti();
-        },
-        error: function (XMLHttpRequest, textStatus, errorThrown) {
-            Ajax_ErrOut(XMLHttpRequest, textStatus, errorThrown);
         }
-    });
+    );
 }
 
 // Elenco Spedizioni 
@@ -1396,27 +1388,18 @@ function Ajax_xmofn_xMOCodSpe() {
 
     $("#pgSP .tr-sp").remove();
 
-    Params = JSON.stringify({
-        Terminale: oApp.Terminale,
-        Cd_Operatore: oApp.Cd_Operatore,
-        Ordinamento: parseInt(localStorage.getItem("SPFiltro"))
-    });
-
-    $.ajax({
-        url: "Moovi.aspx/xmofn_xMOCodSpe",
-        async: false,
-        data: Params,
-        type: "POST",
-        dataType: "json",
-        contentType: "application/json; charset=utf-8",
-        success: function (mydata) {
+    ajaxCallSync(
+        "/xmofn_xMOCodSpe",
+        {
+            Terminale: oApp.Terminale,
+            Cd_Operatore: oApp.Cd_Operatore,
+            Ordinamento: parseInt(localStorage.getItem("SPFiltro"))
+        },
+        function (mydata) {
             Spedizione_Load($.parseJSON(mydata.d));
             out = true;
-        },
-        error: function (XMLHttpRequest, textStatus, errorThrown) {
-            Ajax_ErrOut(XMLHttpRequest, textStatus, errorThrown);
         }
-    });
+    );
 
     return out;
 }
@@ -1428,67 +1411,87 @@ function Ajax_xmofn_xListaCarico() {
 
     $("#pgxListaCarico .tr-ldc").remove();
 
-    Params = JSON.stringify({
-        Terminale: oApp.Terminale,
-        Cd_Operatore: oApp.Cd_Operatore
-    });
-
-    $.ajax({
-        url: "Moovi.aspx/xmofn_xListaCarico",
-        async: false,
-        data: Params,
-        type: "POST",
-        dataType: "json",
-        contentType: "application/json; charset=utf-8",
-        success: function (mydata) {
+    ajaxCallSync(
+        "/xmofn_xListaCarico",
+        {
+            Terminale: oApp.Terminale,
+            Cd_Operatore: oApp.Cd_Operatore
+        },
+        function (mydata) {
             xListaCarico_Load($.parseJSON(mydata.d));
             out = true;
-        },
-        error: function (XMLHttpRequest, textStatus, errorThrown) {
-            Ajax_ErrOut(XMLHttpRequest, textStatus, errorThrown);
         }
-    });
+    );
 
     return out;
 }
+
+//Recupera il fattore di conversione dalla UI
+function UMFatt_FromUI() {
+    var out = 1;
+    // In base all'impostazione seleziona l'UMFatt
+    //console.warn("oPrg.drDO.xMOUMFatt ", oPrg.drDO.xMOUMFatt);
+    switch (oPrg.drDO.xMOUMFatt) {
+        case 0:
+            //Nessuno --> FattoreToUM1 preso dal select delle UM
+            out = fU.ToDecimal(ActivePage().find("select[name='Cd_ARMisura'] :selected").attr('umfatt'), 1);
+            break;
+        case 1:
+            //Standard --> FattoreToUM1 se vuoto lo valorizza con 1 
+            out = fU.ToDecimal(ActivePage().find("input[name='UMFatt']").val(), 1);
+            break;
+        case 2:
+            //se non ho selezionato l'UM principale 
+            if (ActivePage().find("select[name='Cd_ARMisura'] :selected").attr('umdef') == 0) {
+                //Qta Dell'UM principale --> FattoreToUM1 = Qta / UMFatt se vuoto lo valorizza con 1
+                var Qta = fU.ToDecimal(ActivePage().find("input[name='Quantita']").val(), 0);
+                var Fat = fU.ToDecimal(ActivePage().find("input[name='UMFatt']").val(), 1);
+                //out = 1 / (Qta / Fat); Non andava bene a CASH
+                out = Qta / Fat;
+            } else
+                out = fU.ToDecimal(ActivePage().find("select[name='Cd_ARMisura'] :selected").attr('umfatt'), 1);
+            break;
+        default:
+            break;
+    }
+    /*console.warn("out", out)*/
+    return out;
+
+
+}
+
 
 // Salvataggio Righe Documento
 function Ajax_xmosp_xMORLRig_Save(EseguiControlli, extdfld) {
 
     var out = false;
-    var p = "#" + oPrg.ActivePageId;
 
     var Barcode = (!fU.IsNull(oPrg.BC) ? fU.ToString(oPrg.BC.BarcodeXml()) : "");
-
-    Params = JSON.stringify({
-        Terminale: oApp.Terminale,
-        Cd_Operatore: oApp.Cd_Operatore,
-        Id_xMORL: oPrg.Id_xMORL_Edit,
-        Cd_AR: fU.ToString($(p).find("input[name='Cd_AR']").val()),
-        Cd_MG_P: fU.ToString($(p).find("input[name='Cd_MG_P']").val().trim()),
-        Cd_MGUbicazione_P: fU.ToString($(p).find("input[name='Cd_MGUbicazione_P']").val().trim()),
-        Cd_MG_A: fU.ToString($(p).find("input[name='Cd_MG_A']").val().trim()),
-        Cd_MGUbicazione_A: fU.IfEmpty($(p).find("input[name='Cd_MGUbicazione_A']").val().trim()),
-        Cd_ARLotto: fU.ToString($(p).find("input[name='Cd_ARLotto']").val()),
-        DataScadenza: fU.DateToSql($(p).find("input[name='DataScadenza']").val()),
-        Matricola: fU.ToString($(p).find("input[name='Matricola']").val()),
-        Cd_ARMisura: fU.ToString($(p).find("select[name='Cd_ARMisura'] :selected").val()),
-        Quantita: fU.ToString(parseFloat($(p).find("input[name='Quantita']").val())),
-        Barcode: Barcode,
-        Cd_DOSottoCommessa: fU.ToString($(p).find("input[name='Cd_DOSottoCommessa']").val()),
-        EseguiControlli: fU.ToBool(EseguiControlli),
-        PackListRef: oPrg.drDO.PkLstEnabled ? $(p).find("select[name='PackListRef']").val() : "",
-        ExtFld: fU.IfEmpty(extdfld, "")
-    });
-
-    $.ajax({
-        url: "Moovi.aspx/xmosp_xMORLRig_Save",
-        async: false,
-        data: Params,
-        type: "POST",
-        dataType: "json",
-        contentType: "application/json; charset=utf-8",
-        success: function (mydata) {
+    ajaxCallSync(
+        "/xmosp_xMORLRig_Save",
+        {
+            Terminale: oApp.Terminale,
+            Cd_Operatore: oApp.Cd_Operatore,
+            Id_xMORL: oPrg.Id_xMORL_Edit,
+            Cd_AR: fU.ToString(ActivePage().find("input[name='Cd_AR']").val()),
+            Cd_MG_P: fU.ToString(ActivePage().find("input[name='Cd_MG_P']").val().trim()),
+            Cd_MGUbicazione_P: fU.ToString(ActivePage().find("input[name='Cd_MGUbicazione_P']").val().trim()),
+            Cd_MG_A: fU.ToString(ActivePage().find("input[name='Cd_MG_A']").val().trim()),
+            Cd_MGUbicazione_A: fU.IfEmpty(ActivePage().find("input[name='Cd_MGUbicazione_A']").val().trim()),
+            Cd_ARLotto: fU.ToString(ActivePage().find("input[name='Cd_ARLotto']").val()),
+            DataScadenza: fU.DateToSql(ActivePage().find("input[name='DataScadenza']").val()),
+            Matricola: fU.ToString(ActivePage().find("input[name='Matricola']").val()),
+            Cd_ARMisura: fU.ToString(ActivePage().find("select[name='Cd_ARMisura'] :selected").val()),
+            UMFatt: UMFatt_FromUI(),
+            Quantita: fU.ToString(parseFloat(ActivePage().find("input[name='Quantita']").val())),
+            Barcode: Barcode,
+            Cd_DOSottoCommessa: fU.ToString(ActivePage().find("input[name='Cd_DOSottoCommessa']").val()),
+            EseguiControlli: fU.ToBool(EseguiControlli),
+            PackListRef: oPrg.drDO.PkLstEnabled ? ActivePage().find("select[name='PackListRef']").val() : "",
+            Id_DORig: oPrg.Id_DORig,
+            ExtFld: fU.IfEmpty(extdfld, "")
+        },
+        function (mydata) {
             var r = $.parseJSON(mydata.d);
 
             // (2):richiesto intervento dell'operatore
@@ -1504,11 +1507,8 @@ function Ajax_xmosp_xMORLRig_Save(EseguiControlli, extdfld) {
                 //Aggiorno le righe lette
                 Ajax_xmofn_xMORLRig_AR();
             }
-        },
-        error: function (XMLHttpRequest, textStatus, errorThrown) {
-            Ajax_ErrOut(XMLHttpRequest, textStatus, errorThrown);
         }
-    });
+    );
 
     return out;
 }
@@ -1516,77 +1516,60 @@ function Ajax_xmosp_xMORLRig_Save(EseguiControlli, extdfld) {
 //Propone una ubicazione per l'articolo
 function Ajax_xmofn_xMORLRig_GetUbicazione(mg_pa) {
     // Pulisce le righe della tabella
-    var p = "#" + oPrg.ActivePageId;
     var posizione;
-    posizione = $(p).find("input[name='Cd_MGUbicazione_" + mg_pa + "']").attr("posizione") ? fU.ToInt32($(p).find("input[name='Cd_MGUbicazione_" + mg_pa + "']").attr("posizione")) + 1 : 1;
-    Params = JSON.stringify({
-        Terminale: oApp.Terminale,
-        Cd_Operatore: oApp.Cd_Operatore,
-        Id_xMORL: oPrg.Id_xMORL_Edit,
-        Cd_MG: fU.ToString($(p).find("input[name='Cd_MG_" + mg_pa + "']").val().trim()),
-        Cd_AR: fU.ToString($(p).find("input[name='Cd_AR']").val().trim()),
-        Posizione: posizione
-    });
+    posizione = ActivePage().find("input[name='Cd_MGUbicazione_" + mg_pa + "']").attr("posizione") ? fU.ToInt32(ActivePage().find("input[name='Cd_MGUbicazione_" + mg_pa + "']").attr("posizione")) + 1 : 1;
 
-    $.ajax({
-        url: "Moovi.aspx/xmofn_xMORLRig_GetUbicazione",
-        async: false,
-        data: Params,
-        type: "POST",
-        dataType: "json",
-        contentType: "application/json; charset=utf-8",
-        success: function (mydata) {
+    ajaxCallSync(
+        "/xmofn_xMORLRig_GetUbicazione",
+        {
+            Terminale: oApp.Terminale,
+            Cd_Operatore: oApp.Cd_Operatore,
+            Id_xMORL: oPrg.Id_xMORL_Edit,
+            Cd_MG: fU.ToString(ActivePage().find("input[name='Cd_MG_" + mg_pa + "']").val().trim()),
+            Cd_AR: fU.ToString(ActivePage().find("input[name='Cd_AR']").val().trim()),
+            Posizione: posizione
+        },
+        function (mydata) {
             var r = $.parseJSON(mydata.d);
             if (r.length > 0) {
                 // Setto l'ubicazione trovata
-                $(p).find("input[name='Cd_MGUbicazione_" + mg_pa + "']").val(r[0].Cd_MGUbicazione);
+                ActivePage().find("input[name='Cd_MGUbicazione_" + mg_pa + "']").val(r[0].Cd_MGUbicazione);
                 // Setto la posizione corrente
-                $(p).find("input[name='Cd_MGUbicazione_" + mg_pa + "']").attr("posizione", r[0].Posizione);
+                ActivePage().find("input[name='Cd_MGUbicazione_" + mg_pa + "']").attr("posizione", r[0].Posizione);
                 // Sposto il focus
-                $(p).find("input[name='Quantita']").focus().select();
+                ActivePage().find("input[name='Quantita']").focus().select();
             } else {
                 // Ubicazione non trovata: la svuoto
-                $(p).find("input[name='Cd_MGUbicazione_" + mg_pa + "']").val("");
+                ActivePage().find("input[name='Cd_MGUbicazione_" + mg_pa + "']").val("");
                 // Setto la poszione a 1
-                $(p).find("input[name='Cd_MGUbicazione_" + mg_pa + "']").attr("posizione", 0);
+                ActivePage().find("input[name='Cd_MGUbicazione_" + mg_pa + "']").attr("posizione", 0);
             }
-        },
-        error: function (XMLHttpBarcode_LoadRequest, textStatus, errorThrown) {
-            Ajax_ErrOut(XMLHttpRequest, textStatus, errorThrown);
         }
-    });
+    );
 }
 
 // Elenco Righe Lette raggruppate per Articolo
 function Ajax_xmofn_xMORLRig_AR() {
 
     // Pulisce le righe della tabella
-    var p = "#" + oPrg.ActivePageId
-    $(p).find("tr.tr-rigprel").remove();
+    ActivePage().find("tr.tr-rigprel").remove();
+    oPrg.RL.dtRLRig_AR = [];
 
-    Params = JSON.stringify({
-        Terminale: oApp.Terminale,
-        Cd_Operatore: oApp.Cd_Operatore,
-        Id_xMORL: oPrg.Id_xMORL_Edit,
-    });
-
-    $.ajax({
-        url: "Moovi.aspx/xmofn_xMORLRig_AR",
-        async: false,
-        data: Params,
-        type: "POST",
-        dataType: "json",
-        contentType: "application/json; charset=utf-8",
-        success: function (mydata) {
+    ajaxCallSync(
+        "/xmofn_xMORLRig_AR",
+        {
+            Terminale: oApp.Terminale,
+            Cd_Operatore: oApp.Cd_Operatore,
+            Id_xMORL: oPrg.Id_xMORL_Edit,
+        },
+        function (mydata) {
             // Refresh delle righe
-            pgRLRig_AR_Load($.parseJSON(mydata.d));
+            oPrg.RL.dtRLRig_AR = JSON.parse(mydata.d);
+            pgRLRig_AR_Load();
             // Refresh del numero di righe lette
             Ajax_select_xMORLRig_NRows();
-        },
-        error: function (XMLHttpBarcode_LoadRequest, textStatus, errorThrown) {
-            Ajax_ErrOut(XMLHttpRequest, textStatus, errorThrown);
         }
-    });
+    );
 
 }
 
@@ -1594,113 +1577,47 @@ function Ajax_xmofn_xMORLRig_AR() {
 function Ajax_xmofn_xMOTRRig_P_AR() {
 
     // Pulisce le righe della tabella
-    var p = "#pgTRRig_P";
-    $(p).find("table .tr-rigp").remove();
+    //$(p).find("table .tr-rigp").remove();
+    ActivePage().find("table .tr-rigp").remove();
 
-    Params = JSON.stringify({
-        Terminale: oApp.Terminale,
-        Cd_Operatore: oApp.Cd_Operatore,
-        Id_xMOTR: oPrg.Id_xMOTR_Edit,
-    });
-
-    $.ajax({
-        url: "Moovi.aspx/xmofn_xMOTRRig_P_AR",
-        async: false,
-        data: Params,
-        type: "POST",
-        dataType: "json",
-        contentType: "application/json; charset=utf-8",
-        success: function (mydata) {
+    ajaxCallSync(
+        "/xmofn_xMOTRRig_P_AR",
+        {
+            Terminale: oApp.Terminale,
+            Cd_Operatore: oApp.Cd_Operatore,
+            Id_xMOTR: oPrg.Id_xMOTR_Edit,
+        },
+        function (mydata) {
             // Refresh delle righe
             pgTRRig_P_AR_Load($.parseJSON(mydata.d));
             // Refresh del numero di righe lette
             Ajax_select_xMOTRRig_P_NRows();
-        },
-        error: function (XMLHttpBarcode_LoadRequest, textStatus, errorThrown) {
-            Ajax_ErrOut(XMLHttpRequest, textStatus, errorThrown);
         }
-    });
+    );
+
 }
 
 // Elenco righe lette nei trasferimenti di arrivo
 function Ajax_xmofn_xMOTRRig_A_AR() {
 
     var p = "#pgTRRig_A";
-    $(p).find(".tr-riga").remove();
+    ActivePage().find(".tr-riga").remove();
 
-    Params = JSON.stringify({
-        Terminale: oApp.Terminale,
-        Cd_Operatore: oApp.Cd_Operatore,
-        Id_xMOTR: oPrg.Id_xMOTR_Edit,
-    });
-
-    $.ajax({
-        url: "Moovi.aspx/xmofn_xMOTRRig_A_AR",
-        async: false,
-        data: Params,
-        type: "POST",
-        dataType: "json",
-        contentType: "application/json; charset=utf-8",
-        success: function (mydata) {
+    ajaxCallSync(
+        "/xmofn_xMOTRRig_A_AR",
+        {
+            Terminale: oApp.Terminale,
+            Cd_Operatore: oApp.Cd_Operatore,
+            Id_xMOTR: oPrg.Id_xMOTR_Edit,
+        },
+        function (mydata) {
             // Refresh delle righe
             var dt = $.parseJSON(mydata.d)
             pgTRRig_A_AR_Load(dt);
             // Refresh del numero di righe lette
             Ajax_select_xMOTRRig_A_NRows();
-        },
-        error: function (XMLHttpBarcode_LoadRequest, textStatus, errorThrown) {
-            Ajax_ErrOut(XMLHttpRequest, textStatus, errorThrown);
         }
-    });
-}
-
-// Elenco barcode utilizzabili nel documento
-function Ajax_xmofn_DOBarcode() {
-
-    //Detail: elimina l'elenco dei bc letti
-    $("#DetailBarcode li.bc").remove();
-    oPrg.BC = null;
-
-    //cerca la gestione BC nella pagina corrente
-    var bc = $("#" + oPrg.ActivePageId).find(".barcode");
-    if (!fU.IsEmpty(bc)) {
-
-        //Reset BC 
-        $(bc).find("option").remove();
-
-        Params = JSON.stringify({
-            Terminale: oApp.Terminale,
-            Cd_Operatore: oApp.Cd_Operatore,
-            Cd_DO: oPrg.drDO.Cd_DO
-        });
-
-        $.ajax({
-            url: "Moovi.aspx/xmofn_DOBarcode",
-            async: false,
-            data: Params,
-            type: "POST",
-            dataType: "json",
-            contentType: "application/json; charset=utf-8",
-            success: function (mydata) {
-                var dtBc = $.parseJSON(mydata.d);
-                oPrg.BC = new Barcode(dtBc);
-                oPrg.BC.Detail_Clear();         //Prima di annullare il BC pulisco il detail 
-                // Carica i barcode 
-                Barcode_Load(bc);
-                //Se il combo possiede bc automatizza la gestione
-                if ($(bc).find("option").length > 0) {
-                    // Codice 
-                    Barcode_SelType();
-                } else {
-                    //Nessun bc definito: rimuove la gestione del bc
-                    $("#" + oPrg.ActivePageId).find(".div-barcode").hide();
-                }
-            },
-            error: function (XMLHttpRequest, textStatus, errorThrown) {
-                Ajax_ErrOut(XMLHttpRequest, textStatus, errorThrown);
-            }
-        });
-    }
+    );
 }
 
 // Elenco UM dell 'ARTICOLO selezionato
@@ -1711,109 +1628,101 @@ function Ajax_xmofn_ARARMisura(TipoARMisura, xMOUmDef) {
     // Pulisce il select
     $("#" + oPrg.ActivePageId + " select[name='Cd_ARMisura'] .op-um").remove();
 
-    Params = JSON.stringify({
-        Terminale: oApp.Terminale,
-        Cd_Operatore: oApp.Cd_Operatore,
-        Cd_AR: fU.ToString($("#" + oPrg.ActivePageId + " input[name='Cd_AR']").val()),
-        TipoARMisura: TipoARMisura,
-        xMOUmDef: xMOUmDef
-    });
-
-    $.ajax({
-        url: "Moovi.aspx/xmofn_ARARMisura",
-        async: false,
-        data: Params,
-        type: "POST",
-        dataType: "json",
-        contentType: "application/json; charset=utf-8",
-        success: function (mydata) {
+    ajaxCallSync(
+        "/xmofn_ARARMisura",
+        {
+            Terminale: oApp.Terminale,
+            Cd_Operatore: oApp.Cd_Operatore,
+            Cd_AR: fU.ToString($("#" + oPrg.ActivePageId + " input[name='Cd_AR']").val()),
+            TipoARMisura: TipoARMisura,
+            xMOUmDef: xMOUmDef
+        },
+        function (mydata) {
             var dt = $.parseJSON(mydata.d);
-            //if (dt.length == 0) {
-            //    // ATTENZIONE: se il dt è vuoto è successo qualcosa di strano 
-            //    // quindi lo ricarico con le UM generiche del login
-            //    dt = oApp.dtxMOARMisura;
-            //}
             ARARMisura_Load(dt);
             out = true;
-        },
-        error: function (XMLHttpRequest, textStatus, errorThrown) {
-            Ajax_ErrOut(XMLHttpRequest, textStatus, errorThrown);
         }
-    });
+    );
+
+    return out;
+}
+
+// Elenco UM dell 'ARTICOLO selezionato
+function Ajax_xmofn_ARARMisura2(Cd_AR, Cd_ARMisura) {
+    var out = false;
+
+    // Pulisce il select
+    $("#" + oPrg.ActivePageId + " select[name='Cd_ARMisura'] .op-um").remove();
+
+    ajaxCallSync(
+        "/xmofn_ARARMisura2",
+        {
+            Terminale: oApp.Terminale,
+            Cd_Operatore: oApp.Cd_Operatore,
+            Cd_AR: fU.ToString(Cd_AR),
+            Cd_ARMisuraDef: fU.ToString(Cd_ARMisura)
+        },
+        function (mydata) {
+            var dt = $.parseJSON(mydata.d);
+            ARARMisura_Load(dt);
+            out = true;
+        }
+    );
+
     return out;
 }
 
 // Recupera l'um dell'alias letto e la seleziona
 function Ajax_xmofn_ARAlias_ARMisura() {
 
-    Params = JSON.stringify({
-        Terminale: oApp.Terminale,
-        Cd_Operatore: oApp.Cd_Operatore,
-        Cd_AR: fU.ToString($("#" + oPrg.ActivePageId + " input[name='Cd_AR']").val()),
-        Alias: fU.ToString($("#" + oPrg.ActivePageId + " .ar-aa").text()),
-    });
-
-    $.ajax({
-        url: "Moovi.aspx/xmofn_ARAlias_ARMisura",
-        async: false,
-        data: Params,
-        type: "POST",
-        dataType: "json",
-        contentType: "application/json; charset=utf-8",
-        success: function (mydata) {
+    ajaxCallSync(
+        "/xmofn_ARAlias_ARMisura",
+        {
+            Terminale: oApp.Terminale,
+            Cd_Operatore: oApp.Cd_Operatore,
+            Cd_AR: fU.ToString($("#" + oPrg.ActivePageId + " input[name='Cd_AR']").val()),
+            Alias: fU.ToString($("#" + oPrg.ActivePageId + " .ar-aa").text()),
+        },
+        function (mydata) {
             var r = $.parseJSON(mydata.d);
             if (!fU.IsEmpty(r[0].Cd_ARMisura)) {
                 $("#" + oPrg.ActivePageId + " select[name='Cd_ARMisura']").val(r[0].Cd_ARMisura.toUpperCase());
             }
-        },
-        error: function (XMLHttpRequest, textStatus, errorThrown) {
-            Ajax_ErrOut(XMLHttpRequest, textStatus, errorThrown);
         }
-    });
+    );
+
 }
 
 // Delete ultima Lettura del DO in pgRLRig
 function Ajax_xmosp_xMORLLast_Del() {
-    Params = JSON.stringify({
-        Terminale: oApp.Terminale,
-        Cd_Operatore: oApp.Cd_Operatore,
-        Id_xMORL_Del: fU.ToInt32(oPrg.Id_xMORL_Edit)
-    });
-    $.ajax({
-        url: "Moovi.aspx/xmosp_xMORLLast_Del",
-        async: false,
-        data: Params,
-        type: "POST",
-        dataType: "json",
-        contentType: "application/json; charset=utf-8",
-        success: function (mydata) {
+
+    ajaxCallSync(
+        "/xmosp_xMORLLast_Del",
+        {
+            Terminale: oApp.Terminale,
+            Cd_Operatore: oApp.Cd_Operatore,
+            Id_xMORL_Del: fU.ToInt32(oPrg.Id_xMORL_Edit)
+        },
+        function (mydata) {
             // Ricarica le letture della pagina da DB e refresh della tabella
             Ajax_xmofn_xMORLRig_AR();
-        },
-        error: function (XMLHttpRequest, textStatus, errorThrown) {
-            Ajax_ErrOut(XMLHttpRequest, textStatus, errorThrown);
         }
-    });
+    );
+
 }
 
 // Numero di Letture effettuate  in pgRLRig
 function Ajax_select_xMORLRig_NRows() {
     var out = false;
 
-    Params = JSON.stringify({
-        Terminale: oApp.Terminale,
-        Cd_Operatore: oApp.Cd_Operatore,
-        Id_xMORL: oPrg.Id_xMORL_Edit
-    });
-
-    $.ajax({
-        url: "Moovi.aspx/xmofn_xMORLRig_Info_Letture_AR ",
-        async: false,
-        data: Params,
-        type: "POST",
-        dataType: "json",
-        contentType: "application/json; charset=utf-8",
-        success: function (mydata) {
+    ajaxCallSync(
+        "/xmofn_xMORLRig_Info_Letture_AR",
+        {
+            Terminale: oApp.Terminale,
+            Cd_Operatore: oApp.Cd_Operatore,
+            Id_xMORL: oPrg.Id_xMORL_Edit
+        },
+        function (mydata) {
             var dt = $.parseJSON(mydata.d);
             if (dt.length > 0) {
                 oPrg.RL.ARIncompleti = dt[0].ArticoliIncompleti;
@@ -1823,11 +1732,8 @@ function Ajax_select_xMORLRig_NRows() {
             // Gestione icon delete e dettagglio in base alla presenza di letture
             pgRLRig_Letture_UI();
             out = true;
-        },
-        error: function (XMLHttpRequest, textStatus, errorThrown) {
-            Ajax_ErrOut(XMLHttpRequest, textStatus, errorThrown);
         }
-    });
+    );
 
     return out;
 }
@@ -1836,18 +1742,12 @@ function Ajax_select_xMORLRig_NRows() {
 function Ajax_select_xMOTRRig_P_NRows() {
     var out = false;
 
-    Params = JSON.stringify({
-        Id_xMOTR: oPrg.Id_xMOTR_Edit
-    });
-
-    $.ajax({
-        url: "Moovi.aspx/select_xMOTRRig_P_NRows",
-        async: false,
-        data: Params,
-        type: "POST",
-        dataType: "json",
-        contentType: "application/json; charset=utf-8",
-        success: function (mydata) {
+    ajaxCallSync(
+        "/select_xMOTRRig_P_NRows",
+        {
+            Id_xMOTR: oPrg.Id_xMOTR_Edit
+        },
+        function (mydata) {
             var r = $.parseJSON(mydata.d);
             // Gestione icon delete e dettaglio in base alla presenza di letture
             if (r[0].NRows == 0) {
@@ -1860,11 +1760,8 @@ function Ajax_select_xMOTRRig_P_NRows() {
             }
             $("#pgTRRig_P .letture").text(r[0].NRows);
             out = true;
-        },
-        error: function (XMLHttpRequest, textStatus, errorThrown) {
-            Ajax_ErrOut(XMLHttpRequest, textStatus, errorThrown);
         }
-    });
+    );
 
     return out;
 }
@@ -1873,18 +1770,12 @@ function Ajax_select_xMOTRRig_P_NRows() {
 function Ajax_select_xMOTRRig_A_NRows() {
     var out = false;
 
-    Params = JSON.stringify({
-        Id_xMOTR: oPrg.Id_xMOTR_Edit,
-    });
-
-    $.ajax({
-        url: "Moovi.aspx/select_xMOTRRig_A_NRows",
-        async: false,
-        data: Params,
-        type: "POST",
-        dataType: "json",
-        contentType: "application/json; charset=utf-8",
-        success: function (mydata) {
+    ajaxCallSync(
+        "/select_xMOTRRig_A_NRows",
+        {
+            Id_xMOTR: oPrg.Id_xMOTR_Edit,
+        },
+        function (mydata) {
             var r = $.parseJSON(mydata.d);
             // Gestione icon delete e dettaglio in base alla presenza di letture
             if (r[0].NRows == 0) {
@@ -1897,46 +1788,65 @@ function Ajax_select_xMOTRRig_A_NRows() {
             }
             $("#pgTRRig_A .letture").text(r[0].NRows);
             out = true;
-        },
-        error: function (XMLHttpRequest, textStatus, errorThrown) {
-            Ajax_ErrOut(XMLHttpRequest, textStatus, errorThrown);
         }
-    });
+    );
 
     return out;
 }
 
+// Chiude la spedizione 
+function Ajax_xmosp_xMORLPiede_ChiudiSpedizione() {
+    var out = false;
+
+    ajaxCallSync(
+        "/xmosp_xMORLPiede_ChiudiSpedizione",
+        {
+            Terminale: oApp.Terminale,
+            Cd_Operatore: oApp.Cd_Operatore,
+            Id_xMORL: oPrg.Id_xMORL_Edit,
+        },
+        function (mydata) {
+            var r = $.parseJSON(mydata.d);
+            if (r[0].Result == 1) {
+                out = true;
+            }
+            else {
+                PopupMsg_Show("ERRORE", r[0].Result, r[0].Messaggio);
+            }
+        }
+    );
+
+    return out;
+
+}
 // Salvataggio Piede  Documento
 function Ajax_xmosp_xMORLPiede_Save() {
 
     var out = false;
 
-    var p = "#" + oPrg.ActivePageId;
-    Params = JSON.stringify({
-        Terminale: oApp.Terminale,
-        Cd_Operatore: oApp.Cd_Operatore,
-        Id_xMORL: oPrg.Id_xMORL_Edit,
-        Targa: $(p).find("input[name='Targa']").val(),
-        Cd_DOCaricatore: $(p).find("input[name='Cd_DOCaricatore']").val(),
-        PesoExtraMks: fU.IfEmpty($(p).find("input[name='PesoExtraMks']").val(), 0),
-        VolumeExtraMks: fU.IfEmpty($(p).find("input[name='VolumeExtraMks']").val(), 0),
-        NotePiede: $(p).find("textarea[name='NotePiede']").val()
-    });
-
-    $.ajax({
-        url: "Moovi.aspx/xmosp_xMORLPiede_Save",
-        async: false,
-        data: Params,
-        type: "POST",
-        dataType: "json",
-        contentType: "application/json; charset=utf-8",
-        success: function (mydata) {
+    ajaxCallSync(
+        "/xmosp_xMORLPiede_Save",
+        {
+            Terminale: oApp.Terminale,
+            Cd_Operatore: oApp.Cd_Operatore,
+            Id_xMORL: oPrg.Id_xMORL_Edit,
+            Targa: ActivePage().find("input[name='Targa']").val(),
+            Cd_DOCaricatore: ActivePage().find("input[name='Cd_DOCaricatore']").val(),
+            PesoExtraMks: fU.IfEmpty(ActivePage().find("input[name='PesoExtraMks']").val(), 0),
+            VolumeExtraMks: fU.IfEmpty(ActivePage().find("input[name='VolumeExtraMks']").val(), 0),
+            NotePiede: ActivePage().find("textarea[name='NotePiede']").val()
+        },
+        function (mydata) {
             var r = $.parseJSON(mydata.d);
             if (r[0].Result == 1) {
                 /* Se l'operatore ha chiesto di salvare il documento (senza stampare)
                 o se non sono presenti moduli di stampa
                 salva il documento e torna alla Home*/
-                if (!fU.ToBool($(p).find(".ck-print").prop("checked")) || (oPrg.drDO.Moduli <= 0)) {
+                if (!fU.ToBool(ActivePage().find(".ck-print").prop("checked")) || (oPrg.drDO.Moduli <= 0)) {
+                    // se richiesto chiude la spedizione
+                    if (fU.IsChecked($("#" + oPrg.ActivePageId).find("input[name='ChiudiSpedizione']")))
+                        Ajax_xmosp_xMORLPiede_ChiudiSpedizione();
+
                     //Salvo lo stato del documento accodandolo al listener
                     var cmd = Listener_RLSave(oPrg.Id_xMORL_Edit);
                     Ajax_ListenerCoda_Add(cmd, oPrg.Id_xMORL_Edit);
@@ -1953,11 +1863,9 @@ function Ajax_xmosp_xMORLPiede_Save() {
             else {
                 PopupMsg_Show("ERRORE", r[0].Result, r[0].Messaggio);
             }
-        },
-        error: function (XMLHttpRequest, textStatus, errorThrown) {
-            Ajax_ErrOut(XMLHttpRequest, textStatus, errorThrown);
         }
-    });
+    );
+
     return out;
 }
 
@@ -1967,28 +1875,20 @@ function Ajax_xmofn_xMOListenerDevice() {
     // Svuota il select dei device 
     $("#pgStampaDocumento .op-lsdevice").remove();
 
-    Params = JSON.stringify({
-        Terminale: oApp.Terminale,
-        Cd_Operatore: oApp.Cd_Operatore,
-        Cd_xMOListener: $("#pgStampaDocumento select[name='Listener']").val()
-    });
-    $.ajax({
-        url: "Moovi.aspx/xmofn_xMOListenerDevice",
-        async: false,
-        data: Params,
-        type: "POST",
-        dataType: "json",
-        contentType: "application/json; charset=utf-8",
-        success: function (mydata) {
+    ajaxCallSync(
+        "/xmofn_xMOListenerDevice",
+        {
+            Terminale: oApp.Terminale,
+            Cd_Operatore: oApp.Cd_Operatore,
+            Cd_xMOListener: $("#pgStampaDocumento select[name='Listener']").val()
+        },
+        function (mydata) {
             var dt = $.parseJSON(mydata.d);
             ListenerDevice_Load(dt);
             Ajax_xmofn_xMOListener_Moduli();
-        },
-        error: function (XMLHttpRequest, textStatus, errorThrown) {
-            Ajax_ErrOut(XMLHttpRequest, textStatus, errorThrown);
         }
+    );
 
-    });
 }
 
 // Elenco Moduli Stampa
@@ -1997,83 +1897,61 @@ function Ajax_xmofn_xMOListener_Moduli() {
     // Svuoto la lista dei moduli
     $("#pgStampaDocumento .li-modulo").remove();
 
-    Params = JSON.stringify({
-        Terminale: oApp.Terminale,
-        Cd_Operatore: oApp.Cd_Operatore,
-        ComputerName: $("#pgStampaDocumento select[name='Listener']").val(),
-        Cd_DO: oPrg.drDO.Cd_DO
-    });
-    $.ajax({
-        url: "Moovi.aspx/xmofn_xMOListener_Moduli",
-        async: false,
-        data: Params,
-        type: "POST",
-        dataType: "json",
-        contentType: "application/json; charset=utf-8",
-        success: function (mydata) {
+    ajaxCallSync(
+        "/xmofn_xMOListener_Moduli",
+        {
+            Terminale: oApp.Terminale,
+            Cd_Operatore: oApp.Cd_Operatore,
+            ComputerName: $("#pgStampaDocumento select[name='Listener']").val(),
+            Cd_DO: oPrg.drDO.Cd_DO
+        },
+        function (mydata) {
             dt = $.parseJSON(mydata.d);
             Listener_Moduli_Load(dt);
-        },
-        error: function (XMLHttpRequest, textStatus, errorThrown) {
-            Ajax_ErrOut(XMLHttpRequest, textStatus, errorThrown);
         }
+    );
 
-    });
 }
 
 // Informazioni sulle Letture visibili in pgRLPiede
 function Ajax_xmofn_xMORLRig_Totali() {
-    Params = JSON.stringify({
-        Terminale: oApp.Terminale,
-        Cd_Operatore: oApp.Cd_Operatore,
-        Id_xMORL: oPrg.Id_xMORL_Edit
-    });
-    $.ajax({
-        url: "Moovi.aspx/xmofn_xMORLRig_Totali",
-        async: false,
-        data: Params,
-        type: "POST",
-        dataType: "json",
-        contentType: "application/json; charset=utf-8",
-        success: function (mydata) {
+
+    ajaxCallSync(
+        "/xmofn_xMORLRig_Totali",
+        {
+            Terminale: oApp.Terminale,
+            Cd_Operatore: oApp.Cd_Operatore,
+            Id_xMORL: oPrg.Id_xMORL_Edit
+        },
+        function (mydata) {
             var row = $.parseJSON(mydata.d);
             // Carica i dati nella pagina
             xMORLRig_Totali_Template(row[0]);
-        },
-        error: function (XMLHttpRequest, textStatus, errorThrown) {
-            Ajax_ErrOut(XMLHttpRequest, textStatus, errorThrown);
         }
+    );
 
-    });
 }
 
 // Delete Lettura del DO
 function Ajax_xmosp_xMORLRig_Del(Id_xMORLRig_Del) {
 
-    Params = JSON.stringify({
-        Terminale: oApp.Terminale,
-        Cd_Operatore: oApp.Cd_Operatore,
-        Id_xMORLRig_Del: Id_xMORLRig_Del
-    });
-    $.ajax({
-        url: "Moovi.aspx/xmosp_xMORLRig_Del",
-        async: false,
-        data: Params,
-        type: "POST",
-        dataType: "json",
-        contentType: "application/json; charset=utf-8",
-        success: function (mydata) {
+    ajaxCallSync(
+        "/xmosp_xMORLRig_Del",
+        {
+            Terminale: oApp.Terminale,
+            Cd_Operatore: oApp.Cd_Operatore,
+            Id_xMORLRig_Del: Id_xMORLRig_Del
+        },
+        function (mydata) {
             var result = $.parseJSON(mydata.d);
             if (result[0].Result > 0)
                 // Aggiorno le letture sulla tabella 
                 Ajax_xmofn_xMORLRig_AR();
             //Aggiorno la lista del dettaglio delle letture
             Detail_Ajax_xmovs_xMORLRig();
-        },
-        error: function (XMLHttpRequest, textStatus, errorThrown) {
-            Ajax_ErrOut(XMLHttpRequest, textStatus, errorThrown);
         }
-    });
+    );
+
 }
 
 // Verifica e valida la coerenza dei documenti da prelevare selezionati in pgPrelievi
@@ -2081,21 +1959,15 @@ function Ajax_xmosp_xMORLPrelievo_Validate(Id_DOTess, Cd_DO) {
 
     var out = false;
 
-    Params = JSON.stringify({
-        Terminale: oApp.Terminale,
-        Cd_Operatore: oApp.Cd_Operatore,
-        Cd_DO: fU.ToString(Cd_DO),
-        Id_DOTess: fU.ToString(Id_DOTess)
-    });
-
-    $.ajax({
-        url: "Moovi.aspx/xmosp_xMORLPrelievo_Validate",
-        async: false,
-        data: Params,
-        type: "POST",
-        dataType: "json",
-        contentType: "application/json; charset=utf-8",
-        success: function (mydata) {
+    ajaxCallSync(
+        "/xmosp_xMORLPrelievo_Validate",
+        {
+            Terminale: oApp.Terminale,
+            Cd_Operatore: oApp.Cd_Operatore,
+            Cd_DO: fU.ToString(Cd_DO),
+            Id_DOTess: fU.ToString(Id_DOTess)
+        },
+        function (mydata) {
             var r = $.parseJSON(mydata.d);
             // ### Sviluppare il caso in cui il result == 2 in cui si richiede l'intervento dell'operatore 
             //per la scelta dei dati di testa del documento che risultano incorenti tra quelli selezionati per il prelievo 
@@ -2104,35 +1976,27 @@ function Ajax_xmosp_xMORLPrelievo_Validate(Id_DOTess, Cd_DO) {
             else {
                 out = true;
             }
-        },
-        error: function (XMLHttpRequest, textStatus, errorThrown) {
-            Ajax_ErrOut(XMLHttpRequest, textStatus, errorThrown);
         }
-    });
+    );
 
     return out;
 }
 
 // Salva la RL dei prelievi validati precedentemente da  'Ajax_xmosp_xMORLPrelievo_Validate'
 function Ajax_xmosp_xMORLPrelievo_SaveRL(Id_DOTess, Cd_DO, Cd_CF) {
+
     var out = false;
 
-    Params = JSON.stringify({
-        Terminale: oApp.Terminale,
-        Cd_Operatore: oApp.Cd_Operatore,
-        Cd_DO: fU.ToString(Cd_DO),
-        Id_DOTess: fU.ToString(Id_DOTess),
-        Id_xMORL: fU.ToString(oPrg.Id_xMORL_Edit)
-    });
-
-    $.ajax({
-        url: "Moovi.aspx/xmosp_xMORLPrelievo_SaveRL",
-        async: false,
-        data: Params,
-        type: "POST",
-        dataType: "json",
-        contentType: "application/json; charset=utf-8",
-        success: function (mydata) {
+    ajaxCallSync(
+        "/xmosp_xMORLPrelievo_SaveRL",
+        {
+            Terminale: oApp.Terminale,
+            Cd_Operatore: oApp.Cd_Operatore,
+            Cd_DO: fU.ToString(Cd_DO),
+            Id_DOTess: fU.ToString(Id_DOTess),
+            Id_xMORL: fU.ToString(oPrg.Id_xMORL_Edit)
+        },
+        function (mydata) {
             var r = $.parseJSON(mydata.d);
             if (r[0].Result < 0)
                 PopupMsg_Show("ERRORE", r[0].Result, r[0].Messaggio);
@@ -2143,41 +2007,35 @@ function Ajax_xmosp_xMORLPrelievo_SaveRL(Id_DOTess, Cd_DO, Cd_CF) {
                 oPrg.Id_xMORL_Edit = r[0].Id_xMORL;
                 out = true;
             }
-        },
-        error: function (XMLHttpRequest, textStatus, errorThrown) {
-            Ajax_ErrOut(XMLHttpRequest, textStatus, errorThrown);
         }
-    });
+    );
 
     return out;
 }
 
 // Salva la TR del trasferimento interno
 function Ajax_xmosp_xMOTR_Save() {
+
     var out = false;
 
-    Params = JSON.stringify({
-        Terminale: oApp.Terminale,
-        Cd_Operatore: oApp.Cd_Operatore,
-        Descrizione: fU.ToString($("#pgTR input[name='Descrizione']").val()),
-        DataMov: fU.DateToSql($("#pgTR input[name='DataMov']").val()),
-        Cd_MG_P: fU.ToString($("#pgTR input[name='Cd_MG_P']").val()),
-        Cd_MGUbicazione_P: fU.ToString($("#pgTR input[name='Cd_MGUbicazione_P']").val()),
-        Cd_MG_A: fU.ToString($("#pgTR input[name='Cd_MG_A']").val()),
-        Cd_MGUbicazione_A: fU.ToString($("#pgTR input[name='Cd_MGUbicazione_A']").val()),
-        Cd_DOSottoCommessa: fU.ToString($("#pgTR input[name='Cd_DOSottoCommessa']").val()),
-        Id_xMOTR: fU.ToString(oPrg.Id_xMOTR_Edit),
-        Cd_xMOProgramma: oApp.dtPrograms[oPrg.Key].Key
-    });
-
-    $.ajax({
-        url: "Moovi.aspx/xmosp_xMOTR_Save",
-        async: false,
-        data: Params,
-        type: "POST",
-        dataType: "json",
-        contentType: "application/json; charset=utf-8",
-        success: function (mydata) {
+    ajaxCallSync(
+        "/xmosp_xMOTR_Save",
+        {
+            Terminale: oApp.Terminale,
+            Cd_Operatore: oApp.Cd_Operatore,
+            Descrizione: fU.ToString($("#pgTR input[name='Descrizione']").val()),
+            DataMov: fU.DateToSql(ActivePage().find("input[name='DataMov']").val()),
+            //DataMov: fU.DateToSql(fU.LocalDateStringToDate($("#pgTR input[name='DataMov']").val())),
+            //DataMov: fU.DateToSql($("#pgTR input[name='DataMov']").val()),
+            Cd_MG_P: fU.ToString($("#pgTR input[name='Cd_MG_P']").val()),
+            Cd_MGUbicazione_P: fU.ToString($("#pgTR input[name='Cd_MGUbicazione_P']").val()),
+            Cd_MG_A: fU.ToString($("#pgTR input[name='Cd_MG_A']").val()),
+            Cd_MGUbicazione_A: fU.ToString($("#pgTR input[name='Cd_MGUbicazione_A']").val()),
+            Cd_DOSottoCommessa: fU.ToString($("#pgTR input[name='Cd_DOSottoCommessa']").val()),
+            Id_xMOTR: fU.ToString(oPrg.Id_xMOTR_Edit),
+            Cd_xMOProgramma: oApp.dtPrograms[oPrg.Key].Key
+        },
+        function (mydata) {
             var r = $.parseJSON(mydata.d);
             if (r[0].Result < 0)
                 PopupMsg_Show("ERRORE", r[0].Result, r[0].Messaggio);
@@ -2188,11 +2046,8 @@ function Ajax_xmosp_xMOTR_Save() {
                 $("#pgTR .lb-doc-id").text(fU.ToString(oPrg.Id_xMOTR_Edit))
                 out = true;
             }
-        },
-        error: function (XMLHttpRequest, textStatus, errorThrown) {
-            Ajax_ErrOut(XMLHttpRequest, textStatus, errorThrown);
         }
-    });
+    );
 
     return out;
 
@@ -2201,31 +2056,22 @@ function Ajax_xmosp_xMOTR_Save() {
 // Salva le Righe del TR di PARTENZA
 function Ajax_xmosp_xMOTRRig_P_Save() {
     var out = false;
-    var p = "#" + oPrg.ActivePageId;
 
-    //var Barcode = (!fU.IsNull(oPrg.BC) ? fU.ToString(oPrg.BC.BarcodeXml()) : "");
-
-    Params = JSON.stringify({
-        Terminale: oApp.Terminale,
-        Cd_Operatore: oApp.Cd_Operatore,
-        Id_xMOTR: oPrg.Id_xMOTR_Edit,
-        Cd_AR: fU.ToString($(p).find("input[name='Cd_AR']").val()),
-        Cd_ARLotto: fU.ToString($(p).find("input[name='Cd_ARLotto']").val()),
-        Quantita: fU.ToString(parseFloat($(p).find("input[name='Quantita']").val())),
-        Cd_ARMisura: fU.ToString($(p).find("select[name='Cd_ARMisura'] :selected").val()),
-        Cd_MG_P: fU.ToString($(p).find("input[name='Cd_MG_P']").val()),
-        Cd_MGUbicazione_P: fU.ToString($(p).find("input[name='Cd_MGUbicazione_P']").val().trim()),
-        Id_xMOTRRig_P: "",
-    });
-
-    $.ajax({
-        url: "Moovi.aspx/xmosp_xMOTRRig_P_Save",
-        async: false,
-        data: Params,
-        type: "POST",
-        dataType: "json",
-        contentType: "application/json; charset=utf-8",
-        success: function (mydata) {
+    ajaxCallSync(
+        "/xmosp_xMOTRRig_P_Save",
+        {
+            Terminale: oApp.Terminale,
+            Cd_Operatore: oApp.Cd_Operatore,
+            Id_xMOTR: oPrg.Id_xMOTR_Edit,
+            Cd_AR: fU.ToString(ActivePage().find("input[name='Cd_AR']").val()),
+            Cd_ARLotto: fU.ToString(ActivePage().find("input[name='Cd_ARLotto']").val()),
+            Quantita: fU.ToString(parseFloat(ActivePage().find("input[name='Quantita']").val())),
+            Cd_ARMisura: fU.ToString(ActivePage().find("select[name='Cd_ARMisura'] :selected").val()),
+            Cd_MG_P: fU.ToString(ActivePage().find("input[name='Cd_MG_P']").val()),
+            Cd_MGUbicazione_P: fU.ToString(ActivePage().find("input[name='Cd_MGUbicazione_P']").val().trim()),
+            Id_xMOTRRig_P: "",
+        },
+        function (mydata) {
             var r = $.parseJSON(mydata.d);
             if (r[0].Result == 1) {
                 out = true;
@@ -2235,11 +2081,8 @@ function Ajax_xmosp_xMOTRRig_P_Save() {
             }
             //Aggiorno le righe lette
             Ajax_xmofn_xMOTRRig_P_AR();
-        },
-        error: function (XMLHttpRequest, textStatus, errorThrown) {
-            Ajax_ErrOut(XMLHttpRequest, textStatus, errorThrown);
         }
-    });
+    );
 
     return out;
 }
@@ -2247,47 +2090,35 @@ function Ajax_xmosp_xMOTRRig_P_Save() {
 // Elimina l'ultima lettura effettuata nei TR di PARTENZA
 function Ajax_xmosp_xMOTRRig_P_Last_Del() {
 
-    Params = JSON.stringify({
-        Terminale: oApp.Terminale,
-        Cd_Operatore: oApp.Cd_Operatore,
-        Id_xMOTR_Del: fU.ToInt32(oPrg.Id_xMOTR_Edit)
-    });
-    $.ajax({
-        url: "Moovi.aspx/xmosp_xMOTRRig_P_Last_Del",
-        async: false,
-        data: Params,
-        type: "POST",
-        dataType: "json",
-        contentType: "application/json; charset=utf-8",
-        success: function (mydata) {
+    ajaxCallSync(
+        "/xmosp_xMOTRRig_P_Last_Del",
+        {
+            Terminale: oApp.Terminale,
+            Cd_Operatore: oApp.Cd_Operatore,
+            Id_xMOTR_Del: fU.ToInt32(oPrg.Id_xMOTR_Edit)
+        },
+        function (mydata) {
             var r = $.parseJSON(mydata.d);
             if (r[0].Result != 1) {
                 PopupMsg_Show("ERRORE", r[0].Result, r[0].Messaggio);
             }
             // Ricarica le letture della pagina da DB e refresh della tabella
             Ajax_xmofn_xMOTRRig_P_AR();
-        },
-        error: function (XMLHttpRequest, textStatus, errorThrown) {
-            Ajax_ErrOut(XMLHttpRequest, textStatus, errorThrown);
         }
-    });
+    );
+
 }
 
 function Ajax_xmosp_xMOTRRig_P_Del(Id_xMOTRRig_P_Del) {
 
-    Params = JSON.stringify({
-        Terminale: oApp.Terminale,
-        Cd_Operatore: oApp.Cd_Operatore,
-        Id_xMOTRRig_P_Del: Id_xMOTRRig_P_Del
-    });
-    $.ajax({
-        url: "Moovi.aspx/xmosp_xMOTRRig_P_Del",
-        async: false,
-        data: Params,
-        type: "POST",
-        dataType: "json",
-        contentType: "application/json; charset=utf-8",
-        success: function (mydata) {
+    ajaxCallSync(
+        "/xmosp_xMOTRRig_P_Del",
+        {
+            Terminale: oApp.Terminale,
+            Cd_Operatore: oApp.Cd_Operatore,
+            Id_xMOTRRig_P_Del: Id_xMOTRRig_P_Del
+        },
+        function (mydata) {
             var r = $.parseJSON(mydata.d);
             if (r[0].Result != 1)
                 PopupMsg_Show("ERRORE", r[0].Result, r[0].Messaggio);
@@ -2295,11 +2126,9 @@ function Ajax_xmosp_xMOTRRig_P_Del(Id_xMOTRRig_P_Del) {
             Ajax_xmofn_xMOTRRig_P_AR();
             //Aggiorno la lista del dettaglio delle letture
             Detail_Ajax_xmovs_xMOTRRig_P();
-        },
-        error: function (XMLHttpRequest, textStatus, errorThrown) {
-            Ajax_ErrOut(XMLHttpRequest, textStatus, errorThrown);
         }
-    });
+    );
+
 }
 
 // Salva le Righe del TR di PARTENZA
@@ -2307,28 +2136,20 @@ function Ajax_xmosp_xMOTRRig_A_Save() {
     var out = false;
     var p = "#" + oPrg.ActivePageId;
 
-    //var Barcode = (!fU.IsNull(oPrg.BC) ? fU.ToString(oPrg.BC.BarcodeXml()) : "");
-
-    Params = JSON.stringify({
-        Terminale: oApp.Terminale,
-        Cd_Operatore: oApp.Cd_Operatore,
-        Id_xMOTR: oPrg.Id_xMOTR_Edit,
-        Id_xMOTRRig_P: $(p).find("input[name='Cd_AR']").attr("Id_xMOTRRig_P"),
-        Quantita: fU.ToString(parseFloat($(p).find("input[name='Quantita']").val())),
-        Cd_ARMisura: fU.ToString($(p).find("select[name='Cd_ARMisura'] :selected").val()),
-        Cd_MG_A: fU.ToString($(p).find("input[name='Cd_MG_A']").val()),
-        Cd_MGUbicazione_A: fU.ToString($(p).find("input[name='Cd_MGUbicazione_A']").val().trim()),
-        Id_xMOTRRig_A: "",
-    });
-
-    $.ajax({
-        url: "Moovi.aspx/xmosp_xMOTRRig_A_Save",
-        async: false,
-        data: Params,
-        type: "POST",
-        dataType: "json",
-        contentType: "application/json; charset=utf-8",
-        success: function (mydata) {
+    ajaxCallSync(
+        "/xmosp_xMOTRRig_A_Save",
+        {
+            Terminale: oApp.Terminale,
+            Cd_Operatore: oApp.Cd_Operatore,
+            Id_xMOTR: oPrg.Id_xMOTR_Edit,
+            Id_xMOTRRig_P: ActivePage().find("input[name='Cd_AR']").attr("Id_xMOTRRig_P"),
+            Quantita: parseFloat(ActivePage().find("input[name='Quantita']").val()),
+            Cd_ARMisura: fU.ToString(ActivePage().find("select[name='Cd_ARMisura'] :selected").val()),
+            Cd_MG_A: fU.ToString(ActivePage().find("input[name='Cd_MG_A']").val()),
+            Cd_MGUbicazione_A: fU.ToString(ActivePage().find("input[name='Cd_MGUbicazione_A']").val().trim()),
+            Id_xMOTRRig_A: "",
+        },
+        function (mydata) {
             var r = $.parseJSON(mydata.d);
             if (r[0].Result == 1) {
                 out = true;
@@ -2338,11 +2159,8 @@ function Ajax_xmosp_xMOTRRig_A_Save() {
             }
             //Aggiorno le righe lette
             Ajax_xmofn_xMOTRRig_A_AR();
-        },
-        error: function (XMLHttpRequest, textStatus, errorThrown) {
-            Ajax_ErrOut(XMLHttpRequest, textStatus, errorThrown);
         }
-    });
+    );
 
     return out;
 }
@@ -2350,47 +2168,35 @@ function Ajax_xmosp_xMOTRRig_A_Save() {
 // Elimina l'ultima lettura effettuata nei TR di ARRIVO
 function Ajax_xmosp_xMOTRRig_A_Last_Del() {
 
-    Params = JSON.stringify({
-        Terminale: oApp.Terminale,
-        Cd_Operatore: oApp.Cd_Operatore,
-        Id_xMOTR_Del: fU.ToInt32(oPrg.Id_xMOTR_Edit)
-    });
-    $.ajax({
-        url: "Moovi.aspx/xmosp_xMOTRRig_A_Last_Del",
-        async: false,
-        data: Params,
-        type: "POST",
-        dataType: "json",
-        contentType: "application/json; charset=utf-8",
-        success: function (mydata) {
+    ajaxCallSync(
+        "/xmosp_xMOTRRig_A_Last_Del",
+        {
+            Terminale: oApp.Terminale,
+            Cd_Operatore: oApp.Cd_Operatore,
+            Id_xMOTR_Del: fU.ToInt32(oPrg.Id_xMOTR_Edit)
+        },
+        function (mydata) {
             var r = $.parseJSON(mydata.d);
             if (r[0].Result != 1) {
                 PopupMsg_Show("ERRORE", r[0].Result, r[0].Messaggio);
             }
             // Ricarica le letture della pagina da DB e refresh della tabella
             Ajax_xmofn_xMOTRRig_A_AR();
-        },
-        error: function (XMLHttpRequest, textStatus, errorThrown) {
-            Ajax_ErrOut(XMLHttpRequest, textStatus, errorThrown);
         }
-    });
+    );
+
 }
 
 function Ajax_xmosp_xMOTRRig_A_Del(Id_xMOTRRig_A_Del) {
 
-    Params = JSON.stringify({
-        Terminale: oApp.Terminale,
-        Cd_Operatore: oApp.Cd_Operatore,
-        Id_xMOTRRig_A_Del: Id_xMOTRRig_A_Del
-    });
-    $.ajax({
-        url: "Moovi.aspx/xmosp_xMOTRRig_A_Del",
-        async: false,
-        data: Params,
-        type: "POST",
-        dataType: "json",
-        contentType: "application/json; charset=utf-8",
-        success: function (mydata) {
+    ajaxCallSync(
+        "/xmosp_xMOTRRig_A_Del",
+        {
+            Terminale: oApp.Terminale,
+            Cd_Operatore: oApp.Cd_Operatore,
+            Id_xMOTRRig_A_Del: Id_xMOTRRig_A_Del
+        },
+        function (mydata) {
             var r = $.parseJSON(mydata.d);
             if (r[0].Result != 1)
                 PopupMsg_Show("ERRORE", r[0].Result, r[0].Messaggio);
@@ -2398,65 +2204,50 @@ function Ajax_xmosp_xMOTRRig_A_Del(Id_xMOTRRig_A_Del) {
             Ajax_xmofn_xMOTRRig_A_AR();
             //Aggiorno la lista del dettaglio delle letture
             Detail_Ajax_xmovs_xMOTRRig_A();
-        },
-        error: function (XMLHttpRequest, textStatus, errorThrown) {
-            Ajax_ErrOut(XMLHttpRequest, textStatus, errorThrown);
         }
-    });
+    );
+
 }
 
 // Se esiste restituisce l'Id_xMOTR di un trasferimento ancora aperto
 function Ajax_xmofn_xMOTR_To_Edit() {
-    Params = JSON.stringify({
-        Terminale: oApp.Terminale,
-        Cd_Operatore: oApp.Cd_Operatore,
-        Id_xMOTR: fU.ToInt32(oPrg.Id_xMOTR_Edit)
 
-    });
-    $.ajax({
-        url: "Moovi.aspx/xmofn_xMOTR_To_Edit",
-        async: false,
-        data: Params,
-        type: "POST",
-        dataType: "json",
-        contentType: "application/json; charset=utf-8",
-        success: function (mydata) {
+    ajaxCallSync(
+        "/xmofn_xMOTR_To_Edit",
+        {
+            Terminale: oApp.Terminale,
+            Cd_Operatore: oApp.Cd_Operatore,
+            Id_xMOTR: fU.ToInt32(oPrg.Id_xMOTR_Edit)
+
+        },
+        function (mydata) {
             var row = $.parseJSON(mydata.d);
             if (!fU.IsEmpty(row[0].Id_xMOTR)) {
                 oPrg.Id_xMOTR_Edit = row[0].Id_xMOTR;
                 oPrg.drTR = row[0];
             }
-        },
-        error: function (XMLHttpRequest, textStatus, errorThrown) {
-            Ajax_ErrOut(XMLHttpRequest, textStatus, errorThrown);
         }
-    });
+    );
+
 }
 
 // Dati riepilogo per pgTRPiede
 function Ajax_xmofn_xMOTRRig_Totali() {
-    Params = JSON.stringify({
-        Terminale: oApp.Terminale,
-        Cd_Operatore: oApp.Cd_Operatore,
-        Id_xMOTR: oPrg.Id_xMOTR_Edit
-    });
-    $.ajax({
-        url: "Moovi.aspx/xmofn_xMOTRRig_Totali",
-        async: false,
-        data: Params,
-        type: "POST",
-        dataType: "json",
-        contentType: "application/json; charset=utf-8",
-        success: function (mydata) {
+
+    ajaxCallSync(
+        "/xmofn_xMOTRRig_Totali",
+        {
+            Terminale: oApp.Terminale,
+            Cd_Operatore: oApp.Cd_Operatore,
+            Id_xMOTR: oPrg.Id_xMOTR_Edit
+        },
+        function (mydata) {
             var row = $.parseJSON(mydata.d);
             // Carica i dati nella pagina
             xMOTRRig_Totali_Template(row[0]);
-        },
-        error: function (XMLHttpRequest, textStatus, errorThrown) {
-            Ajax_ErrOut(XMLHttpRequest, textStatus, errorThrown);
         }
+    );
 
-    });
 }
 
 // Salvataggio del piede del trasferimento
@@ -2464,20 +2255,14 @@ function Ajax_xmosp_xMOTRPiede_Save() {
 
     var out = false;
 
-    Params = JSON.stringify({
-        Terminale: oApp.Terminale,
-        Cd_Operatore: oApp.Cd_Operatore,
-        Id_xMOTR: oPrg.Id_xMOTR_Edit
-    });
-
-    $.ajax({
-        url: "Moovi.aspx/xmosp_xMOTRPiede_Save",
-        async: false,
-        data: Params,
-        type: "POST",
-        dataType: "json",
-        contentType: "application/json; charset=utf-8",
-        success: function (mydata) {
+    ajaxCallSync(
+        "/xmosp_xMOTRPiede_Save",
+        {
+            Terminale: oApp.Terminale,
+            Cd_Operatore: oApp.Cd_Operatore,
+            Id_xMOTR: oPrg.Id_xMOTR_Edit
+        },
+        function (mydata) {
             var r = $.parseJSON(mydata.d);
             if (r[0].Result == 1) {
                 //Salvo lo stato del documento accodandolo al listener
@@ -2490,28 +2275,21 @@ function Ajax_xmosp_xMOTRPiede_Save() {
             else {
                 PopupMsg_Show("ERRORE", r[0].Result, r[0].Messaggio);
             }
-        },
-        error: function (XMLHttpRequest, textStatus, errorThrown) {
-            Ajax_ErrOut(XMLHttpRequest, textStatus, errorThrown);
         }
-    });
+    );
 
     return out;
 }
 
 function Ajax_xmofn_Get_AR_From_AAA(Cd_AR, Cd_CF) {
-    Params = JSON.stringify({
-        Cd_AR: Cd_AR,
-        Cd_CF: fU.IfEmpty(Cd_CF, "")
-    });
-    $.ajax({
-        url: "Moovi.aspx/xmofn_Get_AR_From_AAA",
-        async: false,
-        data: Params,
-        type: "POST",
-        dataType: "json",
-        contentType: "application/json; charset=utf-8",
-        success: function (mydata) {
+
+    ajaxCallSync(
+        "/xmofn_Get_AR_From_AAA",
+        {
+            Cd_AR: Cd_AR,
+            Cd_CF: fU.IfEmpty(Cd_CF, "")
+        },
+        function (mydata) {
             var theCd_AR = mydata.d;
             if (!fU.IsEmpty(theCd_AR)) {
                 // Mette il codice immesso dall'op nella label alias/codici alternativi'
@@ -2520,21 +2298,22 @@ function Ajax_xmofn_Get_AR_From_AAA(Cd_AR, Cd_CF) {
                 $("#" + oPrg.ActivePageId + " input[name='Cd_AR']").val(theCd_AR);
             }
             else {
-                // verifica se è abilitata l'acquisizione alias avvia il popup per l'insert
-                if (oApp.dtDO[oPrg.drDO.Cd_DO].xMOAA) {
-                    // Visualizzo il popup per andare alla pagina di inserimento degli alias
-                    Popup_ARAlias_Insert_Show(Cd_AR);
-                }
-                else {
-                    $("#" + oPrg.ActivePageId + " input[name='Cd_AR']").val("");
-                    PopupMsg_Show("ERRORE", "1", "Articolo " + Cd_AR + " non trovato");
+                //Verifico se è stato caricato un documento
+                if (oPrg.drDO) {
+                    // verifica se è abilitata l'acquisizione alias avvia il popup per l'insert
+                    if (oApp.dtDO[oPrg.drDO.Cd_DO].xMOAA) {
+                        // Visualizzo il popup per andare alla pagina di inserimento degli alias
+                        Popup_ARAlias_Insert_Show(Cd_AR);
+                    }
+                    else {
+                        $("#" + oPrg.ActivePageId + " input[name='Cd_AR']").val("");
+                        PopupMsg_Show("ERRORE", "1", "Articolo " + Cd_AR + " non trovato");
+                    }
                 }
             }
-        },
-        error: function (XMLHttpRequest, textStatus, errorThrown) {
-            Ajax_ErrOut(XMLHttpRequest, textStatus, errorThrown);
         }
-    });
+    );
+
 }
 
 // Recupera le pklRef se esistono
@@ -2542,19 +2321,14 @@ function Ajax_xmofn_xMORLRigPackingList() {
 
     $("#pgRLRig select[name='PackListRef'] .op-pklref").remove();
 
-    Params = JSON.stringify({
-        Terminale: oApp.Terminale
-        , Cd_Operatore: oApp.Cd_Operatore
-        , Id_xMORL: oPrg.Id_xMORL_Edit
-    });
-    $.ajax({
-        url: "Moovi.aspx/xmofn_xMORLRigPackingList",
-        async: false,
-        data: Params,
-        type: "POST",
-        dataType: "json",
-        contentType: "application/json; charset=utf-8",
-        success: function (mydata) {
+    ajaxCallSync(
+        "/xmofn_xMORLRigPackingList",
+        {
+            Terminale: oApp.Terminale
+            , Cd_Operatore: oApp.Cd_Operatore
+            , Id_xMORL: oPrg.Id_xMORL_Edit
+        },
+        function (mydata) {
             var dt = $.parseJSON(mydata.d);
             if (dt.length > 0) {
                 PackListRef_Load(dt);
@@ -2563,29 +2337,21 @@ function Ajax_xmofn_xMORLRigPackingList() {
                 // Se non sono stati trovati PackListRef ne propongo uno nuovo
                 Popup_PackList_New_Load();
             }
-        },
-        error: function (XMLHttpRequest, textStatus, errorThrown) {
-            Ajax_ErrOut(XMLHttpRequest, textStatus, errorThrown);
         }
-    });
+    );
 }
 
 // Recupera il codice successivo da proporre come nuovo pklRef
 function Ajax_xmofn_xMORLRigPackingList_GetNew() {
 
-    Params = JSON.stringify({
-        Terminale: oApp.Terminale
-        , Cd_Operatore: oApp.Cd_Operatore
-        , Id_xMORL: oPrg.Id_xMORL_Edit
-    });
-    $.ajax({
-        url: "Moovi.aspx/xmofn_xMORLRigPackingList_GetNew",
-        async: false,
-        data: Params,
-        type: "POST",
-        dataType: "json",
-        contentType: "application/json; charset=utf-8",
-        success: function (mydata) {
+    ajaxCallSync(
+        "/xmofn_xMORLRigPackingList_GetNew",
+        {
+            Terminale: oApp.Terminale
+            , Cd_Operatore: oApp.Cd_Operatore
+            , Id_xMORL: oPrg.Id_xMORL_Edit
+        },
+        function (mydata) {
             var PK = mydata.d;
             if (!fU.IsEmpty(PK)) {
                 // Inserisco il codice restituito dalla sp nell'input del popup
@@ -2594,11 +2360,9 @@ function Ajax_xmofn_xMORLRigPackingList_GetNew() {
             else {
                 PopupMsg_Show("ATTENZIONE", "", "Nessun PackList nuovo è stato generato");
             }
-        },
-        error: function (XMLHttpRequest, textStatus, errorThrown) {
-            Ajax_ErrOut(XMLHttpRequest, textStatus, errorThrown);
         }
-    });
+    );
+
 }
 
 function Ajax_xmosp_xMORLRigPackList_Del() {
@@ -2606,21 +2370,15 @@ function Ajax_xmosp_xMORLRigPackList_Del() {
 
     var p = $("#Popup_PKListAR_DelShift");
 
-    Params = JSON.stringify({
-        Terminale: oApp.Terminale,
-        Cd_Operatore: oApp.Cd_Operatore,
-        Id_xMORLRigPackList_Del: p.attr("Id_xMORLRigPackList"),
-        Qta_Del: p.find("input[name='Qta']").val()
-    });
-
-    $.ajax({
-        url: "Moovi.aspx/xmosp_xMORLRigPackList_Del",
-        async: false,
-        data: Params,
-        type: "POST",
-        dataType: "json",
-        contentType: "application/json; charset=utf-8",
-        success: function (mydata) {
+    ajaxCallSync(
+        "/xmosp_xMORLRigPackList_Del",
+        {
+            Terminale: oApp.Terminale,
+            Cd_Operatore: oApp.Cd_Operatore,
+            Id_xMORLRigPackList_Del: p.attr("Id_xMORLRigPackList"),
+            Qta_Del: p.find("input[name='Qta']").val()
+        },
+        function (mydata) {
             var r = $.parseJSON(mydata.d);
             if (r[0].Result == 1) {
                 // Refresh del dettaglio e del select dei packlistref
@@ -2635,11 +2393,8 @@ function Ajax_xmosp_xMORLRigPackList_Del() {
             else {
                 PopupMsg_Show("ERRORE", r[0].Result, r[0].Messaggio);
             }
-        },
-        error: function (XMLHttpRequest, textStatus, errorThrown) {
-            Ajax_ErrOut(XMLHttpRequest, textStatus, errorThrown);
         }
-    });
+    );
 
     return out;
 }
@@ -2650,22 +2405,16 @@ function Ajax_xmosp_xMORLRigPackList_Shift() {
 
     var p = $("#Popup_PKListAR_DelShift");
 
-    Params = JSON.stringify({
-        Terminale: oApp.Terminale,
-        Cd_Operatore: oApp.Cd_Operatore,
-        Id_xMORLRigPackList: p.attr("Id_xMORLRigPackList"),
-        PackListRef_New: p.find("select[name='PackListRef']").val(),
-        Qta_New: p.find("input[name='Qta']").val()
-    });
-
-    $.ajax({
-        url: "Moovi.aspx/xmosp_xMORLRigPackList_Shift",
-        async: false,
-        data: Params,
-        type: "POST",
-        dataType: "json",
-        contentType: "application/json; charset=utf-8",
-        success: function (mydata) {
+    ajaxCallSync(
+        "/xmosp_xMORLRigPackList_Shift",
+        {
+            Terminale: oApp.Terminale,
+            Cd_Operatore: oApp.Cd_Operatore,
+            Id_xMORLRigPackList: p.attr("Id_xMORLRigPackList"),
+            PackListRef_New: p.find("select[name='PackListRef']").val(),
+            Qta_New: p.find("input[name='Qta']").val()
+        },
+        function (mydata) {
             var r = $.parseJSON(mydata.d);
             if (r[0].Result == 1) {
                 // Refresh del dettaglio e del select dei packlistref
@@ -2680,11 +2429,8 @@ function Ajax_xmosp_xMORLRigPackList_Shift() {
             else {
                 PopupMsg_Show("ERRORE", r[0].Result, r[0].Messaggio);
             }
-        },
-        error: function (XMLHttpRequest, textStatus, errorThrown) {
-            Ajax_ErrOut(XMLHttpRequest, textStatus, errorThrown);
         }
-    });
+    );
 
     return out;
 }
@@ -2692,27 +2438,20 @@ function Ajax_xmosp_xMORLRigPackList_Shift() {
 // Elenco tipologie di UL
 function Ajax_xmofn_xMOUniLog() {
 
-    Params = JSON.stringify({
-        Terminale: oApp.Terminale
-        , Cd_Operatore: oApp.Cd_Operatore
-    });
-    $.ajax({
-        url: "Moovi.aspx/xmofn_xMOUniLog",
-        async: false,
-        data: Params,
-        type: "POST",
-        dataType: "json",
-        contentType: "application/json; charset=utf-8",
-        success: function (mydata) {
+    ajaxCallSync(
+        "/xmofn_xMOUniLog",
+        {
+            Terminale: oApp.Terminale
+            , Cd_Operatore: oApp.Cd_Operatore
+        },
+        function (mydata) {
             var dt = $.parseJSON(mydata.d);
             if (dt.length > 0) {
                 xMOUniLog_Load(dt);
             }
-        },
-        error: function (XMLHttpRequest, textStatus, errorThrown) {
-            Ajax_ErrOut(XMLHttpRequest, textStatus, errorThrown);
         }
-    });
+    );
+
 }
 
 // Update/Insert di un nuovo PackListRef 
@@ -2721,22 +2460,17 @@ function Ajax_xmosp_xMORLPackListRef_Add() {
 
     var PackListRef = $("#Popup_PackList_New input[name='PackListRef']").val();
     var Cd_xMOUniLog = $("#Popup_PackList_New select[name='Cd_xMOUniLog']").val()
-    Params = JSON.stringify({
-        Terminale: oApp.Terminale,
-        Cd_Operatore: oApp.Cd_Operatore,
-        Id_xMORL: oPrg.Id_xMORL_Edit,
-        PackListRef: PackListRef,
-        Cd_xMOUniLog: Cd_xMOUniLog
-    });
 
-    $.ajax({
-        url: "Moovi.aspx/xmosp_xMORLPackListRef_Add",
-        async: false,
-        data: Params,
-        type: "POST",
-        dataType: "json",
-        contentType: "application/json; charset=utf-8",
-        success: function (mydata) {
+    ajaxCallSync(
+        "/xmosp_xMORLPackListRef_Add",
+        {
+            Terminale: oApp.Terminale,
+            Cd_Operatore: oApp.Cd_Operatore,
+            Id_xMORL: oPrg.Id_xMORL_Edit,
+            PackListRef: PackListRef,
+            Cd_xMOUniLog: Cd_xMOUniLog
+        },
+        function (mydata) {
             var r = $.parseJSON(mydata.d);
             if (r[0].Result == 1) {
                 // Aggiunge il pklRef se non è già presente nel select
@@ -2746,11 +2480,8 @@ function Ajax_xmosp_xMORLPackListRef_Add() {
             else {
                 PopupMsg_Show("ERRORE", r[0].Result, r[0].Messaggio);
             }
-        },
-        error: function (XMLHttpRequest, textStatus, errorThrown) {
-            Ajax_ErrOut(XMLHttpRequest, textStatus, errorThrown);
         }
-    });
+    );
 
     return out;
 }
@@ -2760,20 +2491,15 @@ function Ajax_xmofn_xMORLPackListRef() {
 
     oPrg.PK.ResetAll();
 
-    Params = JSON.stringify({
-        Terminale: oApp.Terminale
-        , Cd_Operatore: oApp.Cd_Operatore
-        , Id_xMORL: oPrg.Id_xMORL_Edit
-        , PackListRef: fU.ToString(oPrg.PK.PackListRef)
-    });
-    $.ajax({
-        url: "Moovi.aspx/xmofn_xMORLPackListRef",
-        async: false,
-        data: Params,
-        type: "POST",
-        dataType: "json",
-        contentType: "application/json; charset=utf-8",
-        success: function (mydata) {
+    ajaxCallSync(
+        "/xmofn_xMORLPackListRef",
+        {
+            Terminale: oApp.Terminale
+            , Cd_Operatore: oApp.Cd_Operatore
+            , Id_xMORL: oPrg.Id_xMORL_Edit
+            , PackListRef: fU.ToString(oPrg.PK.PackListRef)
+        },
+        function (mydata) {
             var dt = $.parseJSON(mydata.d);
             if (dt.length > 0) {
                 oPrg.PK.dtxMORLPK = dt;
@@ -2782,16 +2508,15 @@ function Ajax_xmofn_xMORLPackListRef() {
             else {
                 PopupMsg_Show("ATTENZIONE", "", "Nessun PackListRef trovato");
             }
-        },
-        error: function (XMLHttpRequest, textStatus, errorThrown) {
-            Ajax_ErrOut(XMLHttpRequest, textStatus, errorThrown);
         }
-    });
+    );
 
 }
 
 function Ajax_xmosp_xMORLPackListRef_Save() {
     var out = false;
+    if (!oPrg.PK.idx)
+        return true;
 
     var p = $("#pgRLPK");
     var Cd_xMOUniLog = p.find(".Cd_xMOUniLog").text() == 'Nessuno' ? "" : fU.ToString(p.find(".Cd_xMOUniLog").text());
@@ -2802,27 +2527,21 @@ function Ajax_xmosp_xMORLPackListRef_Save() {
     var LunghezzaMks = fU.ToDecimal(p.find("input[name='LunghezzaMks']").val());
     var LarghezzaMks = fU.ToDecimal(p.find("input[name='LarghezzaMks']").val());
 
-    Params = JSON.stringify({
-        Terminale: oApp.Terminale,
-        Cd_Operatore: oApp.Cd_Operatore,
-        Id_xMORLPackListRef: oPrg.PK.dtxMORLPK[oPrg.PK.idx].Id_xMORLPackListRef,
-        Cd_xMOUniLog: Cd_xMOUniLog,
-        PesoTaraMks: PesoTaraMks,
-        PesoNettoMks: PesoNettoMks,
-        PesoLordoMks: PesoLordoMks,
-        AltezzaMks: AltezzaMks,
-        LunghezzaMks: LunghezzaMks,
-        LarghezzaMks: LarghezzaMks,
-    });
-
-    $.ajax({
-        url: "Moovi.aspx/xmosp_xMORLPackListRef_Save",
-        async: false,
-        data: Params,
-        type: "POST",
-        dataType: "json",
-        contentType: "application/json; charset=utf-8",
-        success: function (mydata) {
+    ajaxCallSync(
+        "/xmosp_xMORLPackListRef_Save",
+        {
+            Terminale: oApp.Terminale,
+            Cd_Operatore: oApp.Cd_Operatore,
+            Id_xMORLPackListRef: oPrg.PK.dtxMORLPK[oPrg.PK.idx].Id_xMORLPackListRef,
+            Cd_xMOUniLog: Cd_xMOUniLog,
+            PesoTaraMks: PesoTaraMks,
+            PesoNettoMks: PesoNettoMks,
+            PesoLordoMks: PesoLordoMks,
+            AltezzaMks: AltezzaMks,
+            LunghezzaMks: LunghezzaMks,
+            LarghezzaMks: LarghezzaMks,
+        },
+        function (mydata) {
             var r = $.parseJSON(mydata.d);
             if (r[0].Result == 1) {
                 //Aggiorno i dati sul client
@@ -2839,11 +2558,8 @@ function Ajax_xmosp_xMORLPackListRef_Save() {
             else {
                 PopupMsg_Show("ERRORE", r[0].Result, r[0].Messaggio);
             }
-        },
-        error: function (XMLHttpRequest, textStatus, errorThrown) {
-            Ajax_ErrOut(XMLHttpRequest, textStatus, errorThrown);
         }
-    });
+    );
 
     return out;
 
@@ -2853,28 +2569,22 @@ function Ajax_xmosp_xMORLPackListRef_Save() {
 function Ajax_xmosp_xMOSM_Save() {
     var out = false;
 
-    Params = JSON.stringify({
-        Terminale: oApp.Terminale,
-        Cd_Operatore: oApp.Cd_Operatore,
-        Descrizione: fU.ToString($("#pgSM input[name='Descrizione']").val()),
-        DataMov: "",         // La passo sempre vuota perchè viene presa getdate la to sql
-        Cd_MG_P: fU.ToString($("#pgSM input[name='Cd_MG_P']").val()),
-        Cd_MGUbicazione_P: fU.ToString($("#pgSM input[name='Cd_MGUbicazione_P']").val()),
-        Cd_MG_A: fU.ToString($("#pgSM input[name='Cd_MG_A']").val()),
-        Cd_MGUbicazione_A: "",       // La passo sempre vuota perchè nel caso di SM l'ubicazione di arrivo sarà proposta per riga
-        Cd_DOSottoCommessa: "",      // La passo sempre vuota perchè nel caso di SM la commessa non è stata ancora gestita
-        Id_xMOTR: fU.ToString(oPrg.Id_xMOTR_Edit),
-        Cd_xMOProgramma: oApp.dtPrograms[oPrg.Key].Key,
-    });
-
-    $.ajax({
-        url: "Moovi.aspx/xmosp_xMOTR_Save",
-        async: false,
-        data: Params,
-        type: "POST",
-        dataType: "json",
-        contentType: "application/json; charset=utf-8",
-        success: function (mydata) {
+    ajaxCallSync(
+        "/xmosp_xMOTR_Save",
+        {
+            Terminale: oApp.Terminale,
+            Cd_Operatore: oApp.Cd_Operatore,
+            Descrizione: fU.ToString($("#pgSM input[name='Descrizione']").val()),
+            DataMov: "",         // La passo sempre vuota perchè viene presa getdate la to sql
+            Cd_MG_P: fU.ToString($("#pgSM input[name='Cd_MG_P']").val()),
+            Cd_MGUbicazione_P: fU.ToString($("#pgSM input[name='Cd_MGUbicazione_P']").val()),
+            Cd_MG_A: fU.ToString($("#pgSM input[name='Cd_MG_A']").val()),
+            Cd_MGUbicazione_A: "",       // La passo sempre vuota perchè nel caso di SM l'ubicazione di arrivo sarà proposta per riga
+            Cd_DOSottoCommessa: "",      // La passo sempre vuota perchè nel caso di SM la commessa non è stata ancora gestita
+            Id_xMOTR: fU.ToString(oPrg.Id_xMOTR_Edit),
+            Cd_xMOProgramma: oApp.dtPrograms[oPrg.Key].Key,
+        },
+        function (mydata) {
             var r = $.parseJSON(mydata.d);
             if (r[0].Result < 0)
                 PopupMsg_Show("ERRORE", r[0].Result, r[0].Messaggio);
@@ -2886,11 +2596,8 @@ function Ajax_xmosp_xMOSM_Save() {
                 Ajax_xmovs_xMOSM();
                 out = true;
             }
-        },
-        error: function (XMLHttpRequest, textStatus, errorThrown) {
-            Ajax_ErrOut(XMLHttpRequest, textStatus, errorThrown);
         }
-    });
+    );
 
     return out;
 
@@ -2900,28 +2607,19 @@ function Ajax_xmosp_xMOSM_Save() {
 function Ajax_xmovs_xMOSM() {
     var out = false;
 
-    Params = JSON.stringify({
-        Id_xMOTR: fU.ToInt32(oPrg.Id_xMOTR_Edit),
-        Cd_xMOProgramma: oPrg.Key
-    });
-
-    $.ajax({
-        url: "Moovi.aspx/xmovs_xMOSM",
-        async: false,
-        data: Params,
-        type: "POST",
-        dataType: "json",
-        contentType: "application/json; charset=utf-8",
-        success: function (mydata) {
+    ajaxCallSync(
+        "/xmovs_xMOSM",
+        {
+            Id_xMOTR: fU.ToInt32(oPrg.Id_xMOTR_Edit),
+            Cd_xMOProgramma: oPrg.Key
+        },
+        function (mydata) {
             //Memorizzo il record di testa SM
             var r = $.parseJSON(mydata.d);
             oPrg.drTR = r[0];
             out = true;
-        },
-        error: function (XMLHttpRequest, textStatus, errorThrown) {
-            Ajax_ErrOut(XMLHttpRequest, textStatus, errorThrown);
         }
-    });
+    );
 
     return out;
 }
@@ -2932,25 +2630,17 @@ function Ajax_xmofn_xMORLPrelievo_NotePiede() {
     // Svuotare il detail 
     $("#Detail_NotePiede li.li-note").remove();
 
-    Params = JSON.stringify({
-        Id_xMORL: oPrg.Id_xMORL_Edit
-    });
-
-    $.ajax({
-        url: "Moovi.aspx/xmofn_xMORLPrelievo_NotePiede",
-        async: false,
-        data: Params,
-        type: "POST",
-        dataType: "json",
-        contentType: "application/json; charset=utf-8",
-        success: function (mydata) {
+    ajaxCallSync(
+        "/xmofn_xMORLPrelievo_NotePiede",
+        {
+            Id_xMORL: oPrg.Id_xMORL_Edit
+        },
+        function (mydata) {
             var dt = $.parseJSON(mydata.d);
             Detail_NotePiede_Load(dt);
-        },
-        error: function (XMLHttpRequest, textStatus, errorThrown) {
-            Ajax_ErrOut(XMLHttpRequest, textStatus, errorThrown);
         }
-    });
+    );
+
     $("#Detail_NotePiede").show();
 }
 
@@ -2967,31 +2657,22 @@ function Search_Ajax_xmofn_AR() {
     $("#SearchAR .li-search").remove();
     $("#SearchAR .mo-msg").text("Ricerca...").show();
 
-    Params = JSON.stringify({
-        Terminale: oApp.Terminale,
-        Cd_Operatore: oApp.Cd_Operatore,
-        Id_xMORL: fU.ToInt32(oPrg.Id_xMORL_Edit),        // Utile per la selezione degli articoli in fase di prelievo
-        Filtro: fU.ToString(oPrg.ActiveSearchValue),
-        Fittizio: fU.IsChecked($("#" + oPrg.ActiveSearchId + " .ck-fittizi"))  // Se selezionato visualizzo anche gli ar fittizi
-    });
-
-    $.ajax({
-        url: "Moovi.aspx/xmofn_AR",
-        async: false,
-        data: Params,
-        type: "POST",
-        dataType: "json",
-        contentType: "application/json; charset=utf-8",
-        success: function (mydata) {
+    ajaxCallSync(
+        "/xmofn_AR",
+        {
+            Terminale: oApp.Terminale,
+            Cd_Operatore: oApp.Cd_Operatore,
+            Id_xMORL: fU.ToInt32(oPrg.Id_xMORL_Edit),        // Utile per la selezione degli articoli in fase di prelievo
+            Filtro: fU.ToString(oPrg.ActiveSearchValue),
+            Fittizio: fU.IsChecked($("#" + oPrg.ActiveSearchId + " .ck-fittizi"))  // Se selezionato visualizzo anche gli ar fittizi
+        },
+        function (mydata) {
             var dt = $.parseJSON(mydata.d);
             Search_Articolo_Load(dt);
             out = true;
-        },
-        error: function (XMLHttpRequest, textStatus, errorThrown) {
-            Ajax_ErrOut(XMLHttpRequest, textStatus, errorThrown);
         }
+    );
 
-    });
     return out;
 }
 
@@ -3001,29 +2682,19 @@ function Search_Ajax_xmofn_Spedizione() {
 
     $("#SearchxMOCodSpe .li-search").remove();
 
-    Params = JSON.stringify({
-        Terminale: oApp.Terminale,
-        Cd_Operatore: oApp.Cd_Operatore,
-        Filtro: fU.ToString(oPrg.ActiveSearchValue)
-    });
-
-    $.ajax({
-        url: "Moovi.aspx/xmofn_xMOCodSpe_Search",
-        async: false,
-        data: Params,
-        type: "POST",
-        dataType: "json",
-        contentType: "application/json; charset=utf-8",
-        success: function (mydata) {
+    ajaxCallSync(
+        "/xmofn_xMOCodSpe_Search",
+        {
+            Terminale: oApp.Terminale,
+            Cd_Operatore: oApp.Cd_Operatore,
+            Filtro: fU.ToString(oPrg.ActiveSearchValue)
+        },
+        function (mydata) {
             var dt = $.parseJSON(mydata.d);
             Search_Spedizione_Load(dt);
             out = true;
-        },
-        error: function (XMLHttpRequest, textStatus, errorThrown) {
-            Ajax_ErrOut(XMLHttpRequest, textStatus, errorThrown);
         }
-
-    });
+    );
 
     return out;
 }
@@ -3034,29 +2705,19 @@ function Search_Ajax_xmofn_xListaCarico() {
 
     $("#SearchxListaCarico .li-search").remove();
 
-    Params = JSON.stringify({
-        Terminale: oApp.Terminale,
-        Cd_Operatore: oApp.Cd_Operatore,
-        Filtro: fU.ToString(oPrg.ActiveSearchValue)
-    });
-
-    $.ajax({
-        url: "Moovi.aspx/xmofn_xListaCarico_Search",
-        async: false,
-        data: Params,
-        type: "POST",
-        dataType: "json",
-        contentType: "application/json; charset=utf-8",
-        success: function (mydata) {
+    ajaxCallSync(
+        "/xmofn_xListaCarico_Search",
+        {
+            Terminale: oApp.Terminale,
+            Cd_Operatore: oApp.Cd_Operatore,
+            Filtro: fU.ToString(oPrg.ActiveSearchValue)
+        },
+        function (mydata) {
             var dt = $.parseJSON(mydata.d);
             Search_xListaCarico_Load(dt);
             out = true;
-        },
-        error: function (XMLHttpRequest, textStatus, errorThrown) {
-            Ajax_ErrOut(XMLHttpRequest, textStatus, errorThrown);
         }
-
-    });
+    );
 
     return out;
 }
@@ -3068,34 +2729,24 @@ function Search_Ajax_xmofn_ARLotto() {
 
     $("#SearchARLotto .li-search").remove();
 
-    Params = JSON.stringify({
-        Terminale: oApp.Terminale,
-        Cd_Operatore: oApp.Cd_Operatore,
-        Id_xMORL: fU.ToInt32(oPrg.Id_xMORL_Edit),
-        Cd_AR: fU.ToString($("#" + oPrg.ActivePageId + " input[name='Cd_AR']").val()),
-        Cd_MG: fU.ToString(fMG.Mg4Find($("#" + oPrg.ActivePageId + " input[name='Cd_MG_P']").val(), $("#" + oPrg.ActivePageId + " input[name='Cd_MG_A']").val())),
-        Cd_MGUbicazione: fU.ToString(fMG.Mg4Find($("#" + oPrg.ActivePageId + " input[name='Cd_MGUbicazione_P']").val(), $("#" + oPrg.ActivePageId + " input[name='Cd_MGUbicazione_A']").val())),
-        Filtro: fU.ToString(oPrg.ActiveSearchValue),
-        GiacPositiva: fU.IsChecked($("#" + oPrg.ActiveSearchId + " .ck-giacpositiva"))
-    });
-
-    $.ajax({
-        url: "Moovi.aspx/xmofn_ARLotto",
-        async: false,
-        data: Params,
-        type: "POST",
-        dataType: "json",
-        contentType: "application/json; charset=utf-8",
-        success: function (mydata) {
+    ajaxCallSync(
+        "/xmofn_ARLotto",
+        {
+            Terminale: oApp.Terminale,
+            Cd_Operatore: oApp.Cd_Operatore,
+            Id_xMORL: fU.ToInt32(oPrg.Id_xMORL_Edit),
+            Cd_AR: fU.ToString($("#" + oPrg.ActivePageId + " input[name='Cd_AR']").val()),
+            Cd_MG: fU.ToString(fMG.Mg4Find($("#" + oPrg.ActivePageId + " input[name='Cd_MG_P']").val(), $("#" + oPrg.ActivePageId + " input[name='Cd_MG_A']").val(), $("#" + oPrg.ActivePageId + " input[name='Cd_MG']").val())),
+            Cd_MGUbicazione: fU.ToString(fMG.Mg4Find($("#" + oPrg.ActivePageId + " input[name='Cd_MGUbicazione_P']").val(), $("#" + oPrg.ActivePageId + " input[name='Cd_MGUbicazione_A']").val())),
+            Filtro: fU.ToString(oPrg.ActiveSearchValue),
+            GiacPositiva: fU.IsChecked($("#" + oPrg.ActiveSearchId + " .ck-giacpositiva"))
+        },
+        function (mydata) {
             var dt = $.parseJSON(mydata.d);
             Search_ARLotto_Load(dt);
             out = true;
-        },
-        error: function (XMLHttpRequest, textStatus, errorThrown) {
-            Ajax_ErrOut(XMLHttpRequest, textStatus, errorThrown);
         }
-
-    });
+    );
 
     return out;
 }
@@ -3108,43 +2759,35 @@ function Search_Ajax_xmofn_CF() {
     $("#SearchCF .li-search").remove();
 
     //oPrg.Programma
-    if (oPrg.Key == "AA") {
-        Params = JSON.stringify({
+    if (oPrg.Key == "AA" || !oPrg.drDO) {
+        Params = {
             Terminale: oApp.Terminale,
             Cd_Operatore: oApp.Cd_Operatore,
             TipoCF: '',
             Cd_DO: '',
             TipoPrelievo: 0,
             Filtro: fU.ToString(oPrg.ActiveSearchValue)
-        });
+        };
     } else {
-        Params = JSON.stringify({
+        Params = {
             Terminale: oApp.Terminale,
             Cd_Operatore: oApp.Cd_Operatore,
-            TipoCF: fU.ToString(oPrg.drDO.CliFor),      // Potrei non avere nessun programma
+            TipoCF: fU.ToString(oPrg.drDO.CliFor),      // Potrei non avere nessun programma // fU.ToString(oPrg.drDO.CliFor),
             Cd_DO: oPrg.drDO.Cd_DO,
             TipoPrelievo: oPrg.drDO.xMOTipoPrelievo,    // 0 = Nessun prelievo; 1 = Prelievo non obbligatorio; 2 = Prelievo obbligatorio;
             Filtro: fU.ToString(oPrg.ActiveSearchValue)
-        });
+        };
     }
 
-    $.ajax({
-        url: "Moovi.aspx/xmofn_CF",
-        async: false,
-        data: Params,
-        type: "POST",
-        dataType: "json",
-        contentType: "application/json; charset=utf-8",
-        success: function (mydata) {
+    ajaxCallSync(
+        "/xmofn_CF",
+        Params,
+        function (mydata) {
             var dt = $.parseJSON(mydata.d);
             Search_CF_Load(dt);
             out = true;
-        },
-        error: function (XMLHttpRequest, textStatus, errorThrown) {
-            Ajax_ErrOut(XMLHttpRequest, textStatus, errorThrown);
         }
-
-    });
+    );
 
     return out;
 }
@@ -3154,29 +2797,20 @@ function Ajax_xmofn_CF(filtro) {
 
     var dt;
 
-    Params = JSON.stringify({
-        Terminale: oApp.Terminale,
-        Cd_Operatore: oApp.Cd_Operatore,
-        TipoCF: '',     // Potrei non avere nessun programma
-        Cd_DO: '',
-        TipoPrelievo: 0,    // 0 = Nessun prelievo; 1 = Prelievo non obbligatorio; 2 = Prelievo obbligatorio;
-        Filtro: filtro
-    });
-    $.ajax({
-        url: "Moovi.aspx/xmofn_CF",
-        async: false,
-        data: Params,
-        type: "POST",
-        dataType: "json",
-        contentType: "application/json; charset=utf-8",
-        success: function (mydata) {
-            dt = $.parseJSON(mydata.d);
+    ajaxCallSync(
+        "/xmofn_CF",
+        {
+            Terminale: oApp.Terminale,
+            Cd_Operatore: oApp.Cd_Operatore,
+            TipoCF: '',     // Potrei non avere nessun programma
+            Cd_DO: '',
+            TipoPrelievo: 0,    // 0 = Nessun prelievo; 1 = Prelievo non obbligatorio; 2 = Prelievo obbligatorio;
+            Filtro: filtro
         },
-        error: function (XMLHttpRequest, textStatus, errorThrown) {
-            Ajax_ErrOut(XMLHttpRequest, textStatus, errorThrown);
+        function (mydata) {
+            dt = $.parseJSON(mydata.d);
         }
-
-    });
+    );
 
     return dt[0];
 }
@@ -3188,33 +2822,23 @@ function Search_Ajax_xmofn_CFDest() {
 
     $("#SearchCFDest .li-search").remove();
 
-    Params = JSON.stringify({
-        Terminale: oApp.Terminale,
-        Cd_Operatore: oApp.Cd_Operatore,
-        TipoCF: fU.ToString(oPrg.drDO.CliFor),
-        Cd_CF: fU.ToString($("#" + oPrg.ActivePageId + " input[name='Cd_CF']").val()),
-        Cd_DO: oPrg.drDO.Cd_DO,
-        TipoPrelievo: 0,      //oPrg.drDO.xMOPrelievo,
-        Filtro: fU.ToString(oPrg.ActiveSearchValue)
-    });
-
-    $.ajax({
-        url: "Moovi.aspx/xmofn_CFDest",
-        async: false,
-        data: Params,
-        type: "POST",
-        dataType: "json",
-        contentType: "application/json; charset=utf-8",
-        success: function (mydata) {
+    ajaxCallSync(
+        "/xmofn_CFDest",
+        {
+            Terminale: oApp.Terminale,
+            Cd_Operatore: oApp.Cd_Operatore,
+            TipoCF: fU.ToString(oPrg.drDO ? oPrg.drDO.CliFor : ''),
+            Cd_CF: fU.ToString($("#" + oPrg.ActivePageId + " input[name='Cd_CF']").val()),
+            Cd_DO: oPrg.drDO ? oPrg.drDO.Cd_DO : '',
+            TipoPrelievo: 0,      //oPrg.drDO.xMOPrelievo,
+            Filtro: fU.ToString(oPrg.ActiveSearchValue)
+        },
+        function (mydata) {
             var dt = $.parseJSON(mydata.d);
             Search_CFDest_Load(dt);
             out = true;
-        },
-        error: function (XMLHttpRequest, textStatus, errorThrown) {
-            Ajax_ErrOut(XMLHttpRequest, textStatus, errorThrown);
         }
-
-    });
+    );
 
     return out;
 }
@@ -3226,29 +2850,19 @@ function Search_Ajax_xmofn_MG() {
 
     $("#SearchMG .li-search").remove();
 
-    Params = JSON.stringify({
-        Terminale: oApp.Terminale,
-        Cd_Operatore: oApp.Cd_Operatore,
-        Filtro: fU.ToString(oPrg.ActiveSearchValue)
-    });
-
-    $.ajax({
-        url: "Moovi.aspx/xmofn_MG",
-        async: false,
-        data: Params,
-        type: "POST",
-        dataType: "json",
-        contentType: "application/json; charset=utf-8",
-        success: function (mydata) {
+    ajaxCallSync(
+        "/xmofn_MG",
+        {
+            Terminale: oApp.Terminale,
+            Cd_Operatore: oApp.Cd_Operatore,
+            Filtro: fU.ToString(oPrg.ActiveSearchValue)
+        },
+        function (mydata) {
             var dt = $.parseJSON(mydata.d);
             Search_MG_Load(dt);
             out = true;
-        },
-        error: function (XMLHttpRequest, textStatus, errorThrown) {
-            Ajax_ErrOut(XMLHttpRequest, textStatus, errorThrown);
         }
-
-    });
+    );
 
     return out;
 }
@@ -3263,30 +2877,22 @@ function Search_Ajax_xmofn_MGUbicazione() {
     //Seleziona il magazzino corrente
     var mgPA = fMG.Mg4PA(oPrg.ActiveSearchOutField);
 
-    Params = JSON.stringify({
-        Terminale: oApp.Terminale,
-        Cd_Operatore: oApp.Cd_Operatore,
-        Cd_MG: fU.ToString($("#" + oPrg.ActivePageId + " input[name='Cd_MG" + mgPA + "']").val()),
-        Cd_AR: fU.ToString($("#" + oPrg.ActivePageId + " input[name='Cd_AR']").val()),
-        Filtro: fU.ToString(oPrg.ActiveSearchValue.trim())
-    });
-    $.ajax({
-        url: "Moovi.aspx/xmofn_MGUbicazione",
-        async: false,
-        data: Params,
-        type: "POST",
-        dataType: "json",
-        contentType: "application/json; charset=utf-8",
-        success: function (mydata) {
+    ajaxCallSync(
+        "/xmofn_MGUbicazione",
+        {
+            Terminale: oApp.Terminale,
+            Cd_Operatore: oApp.Cd_Operatore,
+            Cd_MG: fU.ToString($("#" + oPrg.ActivePageId + " input[name='Cd_MG" + mgPA + "']").val()),
+            Cd_AR: fU.ToString($("#" + oPrg.ActivePageId + " input[name='Cd_AR']").val()),
+            Filtro: fU.ToString(oPrg.ActiveSearchValue.trim())
+        },
+        function (mydata) {
             var dt = $.parseJSON(mydata.d)
             Search_MGUbicazione_Load(dt);
             MGUbicazione_Giac_Filter();
             out = true;
-        },
-        error: function (XMLHttpRequest, textStatus, errorThrown) {
-            Ajax_ErrOut(XMLHttpRequest, textStatus, errorThrown);
         }
-    });
+    );
 
     return out;
 }
@@ -3298,25 +2904,18 @@ function Search_Ajax_xmofn_xMODOSottoCommessa() {
 
     $("#SearchDOSottoCommessa .li-search").remove();
 
-    Params = JSON.stringify({
-        Filtro: fU.ToString(oPrg.ActiveSearchValue)
-    });
-    $.ajax({
-        url: "Moovi.aspx/xmofn_xMODOSottoCommessa",
-        async: false,
-        data: Params,
-        type: "POST",
-        dataType: "json",
-        contentType: "application/json; charset=utf-8",
-        success: function (mydata) {
+    ajaxCallSync(
+        "/xmofn_xMODOSottoCommessa",
+        {
+            Cd_CF: fU.ToString(ActivePage().find("input[name='Cd_CF']").val()),
+            Filtro: fU.ToString(oPrg.ActiveSearchValue)
+        },
+        function (mydata) {
             var dt = $.parseJSON(mydata.d)
             Search_DOSottoCommessa_Load(dt);
             out = true;
-        },
-        error: function (XMLHttpRequest, textStatus, errorThrown) {
-            Ajax_ErrOut(XMLHttpRequest, textStatus, errorThrown);
         }
-    });
+    );
 
     return out;
 }
@@ -3328,27 +2927,19 @@ function Search_Ajax_xmofn_DOCaricatore() {
 
     $("#SearchDOCaricatore .li-search").remove();
 
-    Params = JSON.stringify({
-        Terminale: oApp.Terminale,
-        Cd_Operatore: oApp.Cd_Operatore,
-        Filtro: fU.ToString(oPrg.ActiveSearchValue)
-    });
-    $.ajax({
-        url: "Moovi.aspx/xmofn_DOCaricatore",
-        async: false,
-        data: Params,
-        type: "POST",
-        dataType: "json",
-        contentType: "application/json; charset=utf-8",
-        success: function (mydata) {
+    ajaxCallSync(
+        "/xmofn_DOCaricatore",
+        {
+            Terminale: oApp.Terminale,
+            Cd_Operatore: oApp.Cd_Operatore,
+            Filtro: fU.ToString(oPrg.ActiveSearchValue)
+        },
+        function (mydata) {
             var dt = $.parseJSON(mydata.d)
             Search_DOCaricatore_Load(dt);
             out = true;
-        },
-        error: function (XMLHttpRequest, textStatus, errorThrown) {
-            Ajax_ErrOut(XMLHttpRequest, textStatus, errorThrown);
         }
-    });
+    );
 
     return out;
 }
@@ -3359,29 +2950,21 @@ function Search_Ajax_xmofn_ARARMisura() {
 
     $("#SearchARARMisura .li-search").remove();
 
-    Params = JSON.stringify({
-        Terminale: oApp.Terminale,
-        Cd_Operatore: oApp.Cd_Operatore,
-        Cd_AR: fU.ToString($("#" + oPrg.ActivePageId + " input[name='Cd_AR']").val()),
-        TipoARMisura: "",
-        xMOUmDef: "",
-    });
-    $.ajax({
-        url: "Moovi.aspx/xmofn_ARARMisura",
-        async: false,
-        data: Params,
-        type: "POST",
-        dataType: "json",
-        contentType: "application/json; charset=utf-8",
-        success: function (mydata) {
+    ajaxCallSync(
+        "/xmofn_ARARMisura",
+        {
+            Terminale: oApp.Terminale,
+            Cd_Operatore: oApp.Cd_Operatore,
+            Cd_AR: fU.ToString($("#" + oPrg.ActivePageId + " input[name='Cd_AR']").val()),
+            TipoARMisura: "",
+            xMOUmDef: "",
+        },
+        function (mydata) {
             var dt = $.parseJSON(mydata.d)
             Search_ARARMisura_Load(dt);
             out = true;
-        },
-        error: function (XMLHttpRequest, textStatus, errorThrown) {
-            Ajax_ErrOut(XMLHttpRequest, textStatus, errorThrown);
         }
-    });
+    );
 
     return out;
 }
@@ -3402,32 +2985,24 @@ function Detail_Ajax_xmofn_ARMGUbicazione_Giac(inputubi, mg) {
     $("#DetailARGiacenza").attr("data-inputubi", inputubi);
     $("#DetailARGiacenza").attr("data-mg", mg);
 
-    Params = JSON.stringify({
-        Terminale: oApp.Terminale,
-        Cd_Operatore: oApp.Cd_Operatore,
-        Cd_AR: $("#" + oPrg.ActivePageId + " input[name='Cd_AR']").val(),
-        Cd_MG: fU.ToString(fMG.Mg4Find($("#" + oPrg.ActivePageId + " input[name='Cd_MG_P']").val(), $("#" + oPrg.ActivePageId + " input[name='Cd_MG_A']").val())),
-    });
-    $.ajax({
-        url: "Moovi.aspx/xmofn_ARMGUbicazione_Giac",
-        async: false,
-        data: Params,
-        type: "POST",
-        dataType: "json",
-        contentType: "application/json; charset=utf-8",
-        success: function (mydata) {
+    ajaxCallSync(
+        "/xmofn_ARMGUbicazione_Giac",
+        {
+            Terminale: oApp.Terminale,
+            Cd_Operatore: oApp.Cd_Operatore,
+            Cd_AR: $("#" + oPrg.ActivePageId + " input[name='Cd_AR']").val(),
+            Cd_MG: fU.ToString(fMG.Mg4Find($("#" + oPrg.ActivePageId + " input[name='Cd_MG_P']").val(), $("#" + oPrg.ActivePageId + " input[name='Cd_MG_A']").val())),
+        },
+        function (mydata) {
             var dt = $.parseJSON(mydata.d);
             if (dt != '') {
                 Detail_ARGiacenza_Load(dt);
                 Articolo_Giac_Filter();
             }
             else { PopupMsg_Show("Messaggio", "1", "L'articolo non è presente in nessun magazzino"); }
-        },
-        error: function (XMLHttpRequest, textStatus, errorThrown) {
-            Ajax_ErrOut(XMLHttpRequest, textStatus, errorThrown);
         }
+    );
 
-    });
 }
 
 // Dettaglio elenco AR giacenze dell'ubicazione
@@ -3437,31 +3012,23 @@ function Detail_Ajax_xmofn_MGUbicazioneAR_Giac(Cd_MGUbi) {
     $("#DetailUBIGiacenza .tr-giac").remove();
     $("#DetailUBIGiacenza h4").text($("#" + oPrg.ActivePageId + " .detail-giacubi").attr("title"));
 
-    Params = JSON.stringify({
-        Terminale: oApp.Terminale,
-        Cd_Operatore: oApp.Cd_Operatore,
-        Cd_MGUbicazione: Cd_MGUbi,
-        Cd_MG: fU.ToString(fMG.Mg4Find($("#" + oPrg.ActivePageId + " input[name='Cd_MG_P']").val(), $("#" + oPrg.ActivePageId + " input[name='Cd_MG_A']").val())),
-    });
-    $.ajax({
-        url: "Moovi.aspx/xmofn_MGUbicazioneAR_Giac",
-        async: false,
-        data: Params,
-        type: "POST",
-        dataType: "json",
-        contentType: "application/json; charset=utf-8",
-        success: function (mydata) {
+    ajaxCallSync(
+        "/xmofn_MGUbicazioneAR_Giac",
+        {
+            Terminale: oApp.Terminale,
+            Cd_Operatore: oApp.Cd_Operatore,
+            Cd_MGUbicazione: Cd_MGUbi,
+            Cd_MG: fU.ToString(fMG.Mg4Find($("#" + oPrg.ActivePageId + " input[name='Cd_MG_P']").val(), $("#" + oPrg.ActivePageId + " input[name='Cd_MG_A']").val())),
+        },
+        function (mydata) {
             var dt = $.parseJSON(mydata.d);
             if (dt != '') {
                 Detail_UBIGiacenza_Load(dt);
             }
             else { PopupMsg_Show("Messaggio", "1", "L'ubicazione " + Cd_MGUbi + " è vuota"); }
-        },
-        error: function (XMLHttpRequest, textStatus, errorThrown) {
-            Ajax_ErrOut(XMLHttpRequest, textStatus, errorThrown);
         }
+    );
 
-    });
 }
 
 // Dettaglio del CF 
@@ -3470,27 +3037,19 @@ function Detail_Ajax_xmovs_CF(Cd_CF) {
     // Svuota il detail
     $("#DetailCF label h4").text("");
 
-    Params = JSON.stringify({
-        Cd_CF: Cd_CF
-    });
-    $.ajax({
-        url: "Moovi.aspx/xmovs_CF",
-        async: false,
-        data: Params,
-        type: "POST",
-        dataType: "json",
-        contentType: "application/json; charset=utf-8",
-        success: function (mydata) {
+    ajaxCallSync(
+        "/xmovs_CF",
+        {
+            Cd_CF: Cd_CF
+        },
+        function (mydata) {
             var dt = $.parseJSON(mydata.d);
             // Carica il detail con i dati
             DetailCF_Template(dt[0]);
             $("#DetailCF").show();
-        },
-        error: function (XMLHttpRequest, textStatus, errorThrown) {
-            Ajax_ErrOut(XMLHttpRequest, textStatus, errorThrown);
         }
+    );
 
-    });
 }
 
 // Dettaglio della CFDest 
@@ -3499,27 +3058,19 @@ function Detail_Ajax_xmovs_CFDest(Cd_CFDest) {
     // Svuota il detail
     $("#DetailCFDest label h4").text("");
 
-    Params = JSON.stringify({
-        Cd_CFDest: Cd_CFDest
-    });
-    $.ajax({
-        url: "Moovi.aspx/xmovs_CFDest",
-        async: false,
-        data: Params,
-        type: "POST",
-        dataType: "json",
-        contentType: "application/json; charset=utf-8",
-        success: function (mydata) {
+    ajaxCallSync(
+        "/xmovs_CFDest",
+        {
+            Cd_CFDest: Cd_CFDest
+        },
+        function (mydata) {
             var dt = $.parseJSON(mydata.d);
             // Carica il detail con i dati
             DetailCFDest_Template(dt[0]);
             $("#DetailCFDest").show();
-        },
-        error: function (XMLHttpRequest, textStatus, errorThrown) {
-            Ajax_ErrOut(XMLHttpRequest, textStatus, errorThrown);
         }
+    );
 
-    });
 }
 
 // Dettaglio del DO: recupera la testa
@@ -3528,53 +3079,36 @@ function Detail_Ajax_xmovs_DOTes(Id_DOTes) {
     $("#DetailDO label h4").text("");
     $("#DetailDO .tr-dorig").remove();
 
-    Params = JSON.stringify({
-        Id_DOTes: Id_DOTes
-    });
-    $.ajax({
-        url: "Moovi.aspx/xmovs_DOTes",
-        async: false,
-        data: Params,
-        type: "POST",
-        dataType: "json",
-        contentType: "application/json; charset=utf-8",
-        success: function (mydata) {
+    ajaxCallSync(
+        "/xmovs_DOTes",
+        {
+            Id_DOTes: Id_DOTes
+        },
+        function (mydata) {
             var dt = $.parseJSON(mydata.d);
             // Carica il detail con i dati
             DetailDOTes_Template(dt[0]);
             // Carica le righe del DO
             Detail_Ajax_xmovs_DORig(Id_DOTes);
-        },
-        error: function (XMLHttpRequest, textStatus, errorThrown) {
-            Ajax_ErrOut(XMLHttpRequest, textStatus, errorThrown);
         }
+    );
 
-    });
 }
 
 // Dettaglio del DO: recupera le righe
 function Detail_Ajax_xmovs_DORig(Id_DOTes) {
 
-    Params = JSON.stringify({
-        Id_DOTes: Id_DOTes
-    });
-    $.ajax({
-        url: "Moovi.aspx/xmovs_DORig",
-        async: false,
-        data: Params,
-        type: "POST",
-        dataType: "json",
-        contentType: "application/json; charset=utf-8",
-        success: function (mydata) {
+    ajaxCallSync(
+        "/xmovs_DORig",
+        {
+            Id_DOTes: Id_DOTes
+        },
+        function (mydata) {
             var dt = $.parseJSON(mydata.d);
             // Carica il detail con i dati
             DetailDORig_Load(dt);
-        },
-        error: function (XMLHttpRequest, textStatus, errorThrown) {
-            Ajax_ErrOut(XMLHttpRequest, textStatus, errorThrown);
         }
-
-    });
+    );
 
 }
 
@@ -3584,27 +3118,20 @@ function Detail_Ajax_xmovs_xMORLRig() {
     // Svuoto il dettaglio
     $("#Detail_Letture .li-rig").remove();
 
-    Params = JSON.stringify({
-        Terminale: oApp.Terminale,
-        Cd_Operatore: oApp.Cd_Operatore,
-        Id_xMORL: oPrg.Id_xMORL_Edit
-    });
-    $.ajax({
-        url: "Moovi.aspx/xmovs_xMORLRig",
-        async: false,
-        data: Params,
-        type: "POST",
-        dataType: "json",
-        contentType: "application/json; charset=utf-8",
-        success: function (mydata) {
+    ajaxCallSync(
+        "/xmovs_xMORLRig",
+        {
+            Terminale: oApp.Terminale,
+            Cd_Operatore: oApp.Cd_Operatore,
+            Id_xMORL: oPrg.Id_xMORL_Edit
+        },
+        function (mydata) {
             var dt = $.parseJSON(mydata.d);
             // Carica il detail delle letture effettuate con i dati
             DetailRLRig_Load(dt);
-        },
-        error: function (XMLHttpRequest, textStatus, errorThrown) {
-            Ajax_ErrOut(XMLHttpRequest, textStatus, errorThrown);
         }
-    });
+    );
+
 }
 
 // Dettaglio delle letture effettuate in TR di PARTENZA
@@ -3613,28 +3140,20 @@ function Detail_Ajax_xmovs_xMOTRRig_P() {
     // Svuoto il dettaglio
     $("#Detail_Letture .li-rig").remove();
 
-    Params = JSON.stringify({
-        Terminale: oApp.Terminale,
-        Cd_Operatore: oApp.Cd_Operatore,
-        Id_xMOTR: oPrg.Id_xMOTR_Edit
-    });
-    $.ajax({
-        url: "Moovi.aspx/xmovs_xMOTRRig_P",
-        async: false,
-        data: Params,
-        type: "POST",
-        dataType: "json",
-        contentType: "application/json; charset=utf-8",
-        success: function (mydata) {
+    ajaxCallSync(
+        "/xmovs_xMOTRRig_P",
+        {
+            Terminale: oApp.Terminale,
+            Cd_Operatore: oApp.Cd_Operatore,
+            Id_xMOTR: oPrg.Id_xMOTR_Edit
+        },
+        function (mydata) {
             var dt = $.parseJSON(mydata.d);
             // Carica il detail delle letture effettuate con i dati
             DetailTRRig_P_Load(dt);
-        },
-        error: function (XMLHttpRequest, textStatus, errorThrown) {
-            Ajax_ErrOut(XMLHttpRequest, textStatus, errorThrown);
         }
+    );
 
-    });
 }
 
 // Dettaglio delle letture effettuate in TR di ARRIVO
@@ -3643,28 +3162,20 @@ function Detail_Ajax_xmovs_xMOTRRig_A() {
     // Svuoto il dettaglio
     $("#Detail_Letture .li-rig").remove();
 
-    Params = JSON.stringify({
-        Terminale: oApp.Terminale,
-        Cd_Operatore: oApp.Cd_Operatore,
-        Id_xMOTR: oPrg.Id_xMOTR_Edit
-    });
-    $.ajax({
-        url: "Moovi.aspx/xmovs_xMOTRRig_A",
-        async: false,
-        data: Params,
-        type: "POST",
-        dataType: "json",
-        contentType: "application/json; charset=utf-8",
-        success: function (mydata) {
+    ajaxCallSync(
+        "/xmovs_xMOTRRig_A",
+        {
+            Terminale: oApp.Terminale,
+            Cd_Operatore: oApp.Cd_Operatore,
+            Id_xMOTR: oPrg.Id_xMOTR_Edit
+        },
+        function (mydata) {
             var dt = $.parseJSON(mydata.d);
             // Carica il detail delle letture effettuate con i dati
             DetailTRRig_A_Load(dt);
-        },
-        error: function (XMLHttpRequest, textStatus, errorThrown) {
-            Ajax_ErrOut(XMLHttpRequest, textStatus, errorThrown);
         }
+    );
 
-    });
 }
 
 
@@ -3675,28 +3186,19 @@ function Detail_Ajax_xmofn_xMORLRigPackingList_AR() {
     // Svuoto i totali dei pesi
     $("#Detail_PackingList .tr-pktotali td").text("");
 
-    Params = JSON.stringify({
-        Terminale: oApp.Terminale,
-        Cd_Operatore: oApp.Cd_Operatore,
-        Id_xMORL: oPrg.Id_xMORL_Edit
-    });
-    $.ajax({
-        url: "Moovi.aspx/xmofn_xMORLRigPackingList_AR",
-        async: false,
-        data: Params,
-        type: "POST",
-        dataType: "json",
-        contentType: "application/json; charset=utf-8",
-        success: function (mydata) {
+    ajaxCallSync(
+        "/xmofn_xMORLRigPackingList_AR",
+        {
+            Terminale: oApp.Terminale,
+            Cd_Operatore: oApp.Cd_Operatore,
+            Id_xMORL: oPrg.Id_xMORL_Edit
+        },
+        function (mydata) {
             var dt = $.parseJSON(mydata.d);
             // Carica il detail della packing, il secondo parametro indica la modalità di visualizzazione
             DetailPackingList_Load(dt, 0);
-        },
-        error: function (XMLHttpRequest, textStatus, errorThrown) {
-            Ajax_ErrOut(XMLHttpRequest, textStatus, errorThrown);
         }
-
-    });
+    );
 
 }
 
@@ -3707,28 +3209,19 @@ function Detail_Ajax_xmofn_xMORLRigPackingList_AR_GRP() {
     // Svuoto i totali dei pesi
     $("#Detail_PackingList .tr-pktotali td").text("");
 
-    Params = JSON.stringify({
-        Terminale: oApp.Terminale,
-        Cd_Operatore: oApp.Cd_Operatore,
-        Id_xMORL: oPrg.Id_xMORL_Edit
-    });
-    $.ajax({
-        url: "Moovi.aspx/xmofn_xMORLRigPackingList_AR_GRP",
-        async: false,
-        data: Params,
-        type: "POST",
-        dataType: "json",
-        contentType: "application/json; charset=utf-8",
-        success: function (mydata) {
+    ajaxCallSync(
+        "/xmofn_xMORLRigPackingList_AR_GRP",
+        {
+            Terminale: oApp.Terminale,
+            Cd_Operatore: oApp.Cd_Operatore,
+            Id_xMORL: oPrg.Id_xMORL_Edit
+        },
+        function (mydata) {
             var dt = $.parseJSON(mydata.d);
             // Carica il detail della packing, il secondo parametro indica la modalità di visualizzazione
             DetailPackingList_Load(dt, 1);
-        },
-        error: function (XMLHttpRequest, textStatus, errorThrown) {
-            Ajax_ErrOut(XMLHttpRequest, textStatus, errorThrown);
         }
-
-    });
+    );
 
 }
 
@@ -3736,28 +3229,20 @@ function Detail_Ajax_xmofn_xMOTRDoc4Stoccaggio() {
     // Svuoto il dettaglio
     $("#Detail_SMDocs .li-do").remove();
 
-    Params = JSON.stringify({
-        Terminale: oApp.Terminale,
-        Cd_Operatore: oApp.Cd_Operatore,
-        Cd_MG_P: $("#pgSM [name='Cd_MG_P']").val(),
-        Cd_MGUbicazione_P: $("#pgSM [name='Cd_MGUbicazione_P']").val(),
-    });
-    $.ajax({
-        url: "Moovi.aspx/xmofn_xMOTRDoc4Stoccaggio",
-        async: false,
-        data: Params,
-        type: "POST",
-        dataType: "json",
-        contentType: "application/json; charset=utf-8",
-        success: function (mydata) {
+    ajaxCallSync(
+        "/xmofn_xMOTRDoc4Stoccaggio",
+        {
+            Terminale: oApp.Terminale,
+            Cd_Operatore: oApp.Cd_Operatore,
+            Cd_MG_P: $("#pgSM [name='Cd_MG_P']").val(),
+            Cd_MGUbicazione_P: $("#pgSM [name='Cd_MGUbicazione_P']").val(),
+        },
+        function (mydata) {
             var dt = $.parseJSON(mydata.d);
             // Carica il detail con l'elenco dei documenti
             DetailSMDocs_Load(dt);
-        },
-        error: function (XMLHttpRequest, textStatus, errorThrown) {
-            Ajax_ErrOut(XMLHttpRequest, textStatus, errorThrown);
         }
-    });
+    );
 
     $("#Detail_SMDocs").show();
 }
@@ -3767,27 +3252,20 @@ function Ajax_xmofn_xMOTRRig_TA() {
     // Svuoto la lista della pagina
     $("#pgSMRig .tr-rig").remove();
 
-    Params = JSON.stringify({
-        Terminale: oApp.Terminale,
-        Cd_Operatore: oApp.Cd_Operatore,
-        Id_xMOTR: oPrg.Id_xMOTR_Edit,
-    });
-    $.ajax({
-        url: "Moovi.aspx/xmofn_xMOTRRig_TA",
-        async: false,
-        data: Params,
-        type: "POST",
-        dataType: "json",
-        contentType: "application/json; charset=utf-8",
-        success: function (mydata) {
+    ajaxCallSync(
+        "/xmofn_xMOTRRig_TA",
+        {
+            Terminale: oApp.Terminale,
+            Cd_Operatore: oApp.Cd_Operatore,
+            Id_xMOTR: oPrg.Id_xMOTR_Edit,
+        },
+        function (mydata) {
             oPrg.SM.dtxMOTRRig_T = $.parseJSON(mydata.d);
             // Carica la lista di tutte le righe PTA della rievazione di stoccaggio aperta
             SMRig_TA_Load();
-        },
-        error: function (XMLHttpRequest, textStatus, errorThrown) {
-            Ajax_ErrOut(XMLHttpRequest, textStatus, errorThrown);
         }
-    });
+    );
+
 }
 
 function Ajax_xmofn_xMOPRBLAttivita() {
@@ -3796,58 +3274,85 @@ function Ajax_xmofn_xMOPRBLAttivita() {
 
     oPrg.PRAV.dtBLA = {};
 
-    var Params = {
-        Terminale: oApp.Terminale,
-        Cd_Operatore: oApp.Cd_Operatore,
-    };
-
-    $.ajax({
-        url: "Moovi.aspx/xmofn_xMOPRBLAttivita",
-        async: false,
-        data: JSON.stringify(Params),
-        type: "POST",
-        dataType: "json",
-        contentType: "application/json; charset=utf-8",
-        success: function (mydata) {
+    ajaxCallSync(
+        "/xmofn_xMOPRBLAttivita",
+        {
+            Terminale: oApp.Terminale,
+            Cd_Operatore: oApp.Cd_Operatore,
+        },
+        function (mydata) {
             oPrg.PRAV.dtBLA = $.parseJSON(mydata.d);
             PRTRAttivita_Load();
             out = true;
-        },
-        error: function (XMLHttpRequest, textStatus, errorThrown) {
-            Ajax_ErrOut(XMLHttpRequest, textStatus, errorThrown);
         }
-    });
+    );
 
     return out;
 }
 
-function Ajax_xmofn_xMOPRBLMateriali() {
-    if (oPrg.PRAV.keyBLA >= 0) {
-        var Params = {
-            Terminale: oApp.Terminale,
-            Cd_Operatore: oApp.Cd_Operatore,
-            Id_PRBLAttivita: oPrg.PRAV.dtBLA[oPrg.PRAV.keyBLA].Id_PrBLAttivita
-        };
 
-        $.ajax({
-            url: "Moovi.aspx/xmofn_xMOPRBLMateriali",
-            async: false,
-            data: JSON.stringify(Params),
-            type: "POST",
-            dataType: "json",
-            contentType: "application/json; charset=utf-8",
-            success: function (mydata) {
-                oPrg.PRAV.dtBLM = $.parseJSON(mydata.d);
-                PRTRMateriali_Load();
+// Mostra la lista dei materiali nella quantità richiesta dall'operatore
+function PRBLMaterialiUsr() {
+    var qtausrum1;
+    var qtausr = $(ActivePage()).find('[data-key="QtaUsr"] input[data-bind="QtaUsrP"]').val();
+    var fattore = $(ActivePage()).find('[data-key="QtaUsr"] input[type="hidden"][data-bind="FattoreToUM1"]').val();
+    qtausrum1 = qtausr * fattore;
+    Ajax_xmofn_xMOPRBLMateriali(qtausrum1);
+}
+
+function Ajax_xmofn_xMOPRBLMateriali(qtausrum1) {
+    if (oPrg.PRAV.keyBLA >= 0) {
+
+        ajaxCallSync(
+            "/xmofn_xMOPRBLMateriali",
+            {
+                Terminale: oApp.Terminale,
+                Cd_Operatore: oApp.Cd_Operatore,
+                Id_PRBLAttivita: oPrg.PRAV.dtBLA[oPrg.PRAV.keyBLA].Id_PrBLAttivita,
+                QtaUsrUM1: (qtausrum1 ? qtausrum1 : oPrg.PRAV.dtBLA[oPrg.PRAV.keyBLA].Quantita * oPrg.PRAV.dtBLA[oPrg.PRAV.keyBLA].FattoreToUM1),
             },
-            error: function (XMLHttpRequest, textStatus, errorThrown) {
-                Ajax_ErrOut(XMLHttpRequest, textStatus, errorThrown);
+            function (mydata) {
+                oPrg.PRAV.dtBLM = $.parseJSON(mydata.d);
+                PRTRMateriali_Load(qtausrum1 ? true : false);
             }
-        });
+        );
+
     }
 }
 
-function Ajax_xmosp_xMOPRTRMateriale_Save() {
+function Ajax_xmosp_xMOPRTRRig_Delete() {
+    // Dati statici
+    var attivita = oPrg.PRAV.dtBLA[oPrg.PRAV.keyBLA];
+    var materiale = oPrg.PRAV.dtBLM[oPrg.PRAV.keyBLM];
+
+    ajaxCallSync(
+        "/xmosp_xMOPRTRRig_Delete",
+        {
+            Terminale: oApp.Terminale,
+            Cd_Operatore: oApp.Cd_Operatore,
+            Id_PrBLAttivita: attivita.Id_PrBLAttivita,
+            Id_PrBLMateriale: materiale.Id_PrBLMateriale,
+        },
+        function (mydata) {
+            var r = $.parseJSON(mydata.d);
+            if (r[0].Result > 0) {
+                //Ricarica i materiali con le quantità dell'operatore
+                PRBLMaterialiUsr();
+            } else {
+                PopupMsg_Show("ERRORE", r[0].Result, r[0].Msg);
+            }
+        }
+    );
+}
+
+function Ajax_xmosp_xMOPRTRRig_Save() {
+
+    //Controlla la linea di produzione
+    if (ActivePage().find("input[data-bind='Cd_xMOLinea']").val() != ActivePage().find("label[data-bind='Cd_xMOLinea']").text()) {
+        PopupMsg_Show("ERRORE", 0, "La linea di produzione non corrisponde a quella della bolla!");
+        return false;
+    }
+
     // Dati statici
     var attivita = oPrg.PRAV.dtBLA[oPrg.PRAV.keyBLA];
     var materiale = oPrg.PRAV.dtBLM[oPrg.PRAV.keyBLM];
@@ -3855,41 +3360,62 @@ function Ajax_xmosp_xMOPRTRMateriale_Save() {
     // Recupero i valori della pagina
     var trasferimento = GetBindedValues('[data-key="Trasferimento"]');
 
-    var Params = {
-        Terminale: oApp.Terminale,
-        Cd_Operatore: oApp.Cd_Operatore,
-        Id_PrBLAttivita: attivita.Id_PrBLAttivita,
-        Id_PrBLMateriale: materiale.Id_PrBLMateriale,
-        Cd_PrRisorsa: attivita.Cd_PrRisorsa,
-        Cd_ARLotto: trasferimento.Cd_ARLotto,
-        Quantita: trasferimento.Quantita,
-        Cd_ARMisura: trasferimento.Cd_ARMisura,
-        FattoreToUM1: fU.ToDecimal(trasferimento.FattoreToUM1),
-        Cd_MG_A: trasferimento.Cd_MG_A,
-        Cd_MGUbicazione_A: trasferimento.Cd_MGUbicazione_A,
-        Note: trasferimento.Note,
-        Mancante: trasferimento.Mancante
-    };
-
-    $.ajax({
-        url: "Moovi.aspx/xmosp_xMOPRTRMateriale_Save",
-        async: false,
-        data: JSON.stringify(Params),
-        type: "POST",
-        dataType: "json",
-        contentType: "application/json; charset=utf-8",
-        success: function (mydata) {
+    ajaxCallSync(
+        "/xmosp_xMOPRTRRig_Save",
+        {
+            Terminale: oApp.Terminale,
+            Cd_Operatore: oApp.Cd_Operatore,
+            Id_PrBLAttivita: attivita.Id_PrBLAttivita,
+            Id_PrBLMateriale: materiale.Id_PrBLMateriale,
+            Cd_ARLotto: trasferimento.Cd_ARLotto,
+            Quantita: trasferimento.Quantita,
+            Cd_ARMisura: trasferimento.Cd_ARMisura,
+            FattoreToUM1: fU.ToDecimal(trasferimento.FattoreToUM1),
+            Cd_MG_P: trasferimento.Cd_MG_P,
+            Cd_MGUbicazione_P: trasferimento.Cd_MGUbicazione_P,
+            Note: trasferimento.Note,
+            Mancante: trasferimento.Mancante
+        },
+        function (mydata) {
             var r = $.parseJSON(mydata.d);
             if (r[0].Result > 0) {
-                Ajax_xmofn_xMOPRBLMateriali();
+                //Ricarica la pagina con i dati della quantità utente
+                PRBLMaterialiUsr();
             } else {
                 PopupMsg_Show("ERRORE", r[0].Result, r[0].Msg);
             }
-        },
-        error: function (XMLHttpRequest, textStatus, errorThrown) {
-            Ajax_ErrOut(XMLHttpRequest, textStatus, errorThrown);
         }
-    });
+    );
+
+}
+
+//trasferisce i materiali in definitivo
+function Ajax_xmosp_xMOPRTR_Close() {
+
+    var PercTrasferita = ActivePage().find("input[data-bind='PercTrasferita']").val();
+
+    if (confirm("Trasferire i materiali al [" + PercTrasferita + "%]?") == false)
+        return false;
+
+    var attivita = oPrg.PRAV.dtBLA[oPrg.PRAV.keyBLA];
+
+    ajaxCallSync(
+        "/xmosp_xMOPRTR_Close",
+        {
+            Terminale: oApp.Terminale,
+            Cd_Operatore: oApp.Cd_Operatore,
+            Id_PrBLAttivita: attivita.Id_PrBLAttivita,
+            PercTrasferita: PercTrasferita,
+        },
+        function (mydata) {
+            var r = $.parseJSON(mydata.d);
+            if (r[0].Result > 0) {
+                Nav.Back();
+            } else {
+                PopupMsg_Show("ERRORE", r[0].Result, r[0].Msg);
+            }
+        }
+    );
 }
 
 function Ajax_xmosp_xMOPRTRMateriale_Back() {
@@ -3899,31 +3425,25 @@ function Ajax_xmosp_xMOPRTRMateriale_Back() {
     // Recupero i valori della pagina
     var trasferimento = GetBindedValues('[data-key="Input"]');
 
-    var Params = {
-        Terminale: oApp.Terminale,
-        Cd_Operatore: oApp.Cd_Operatore,
-        Cd_MG_P: materiale.Cd_MG_P,
-        Cd_MGUbicazione_P: materiale.Cd_MGUbicazione_P,
-        Cd_AR: materiale.Cd_AR,
-        Cd_ARLotto: materiale.Cd_ARLotto,
-        Quantita_P: materiale.Quantita,
-        Quantita_A: trasferimento.Quantita_A,
-        Cd_ARMisura: trasferimento.Cd_ARMisura,
-        FattoreToUM1: fU.ToDecimal(trasferimento.FattoreToUM1),
-        Note: trasferimento.Note,
-        Cd_MG_A: materiale.Cd_MG_A,
-        Cd_MGUbicazione_A: trasferimento.Cd_MGUbicazione_A,
-        xMOCompleta: trasferimento.xMOCompleta,
-    };
-
-    $.ajax({
-        url: "Moovi.aspx/xmosp_xMOPRTRMateriale_Back",
-        async: false,
-        data: JSON.stringify(Params),
-        type: "POST",
-        dataType: "json",
-        contentType: "application/json; charset=utf-8",
-        success: function (mydata) {
+    ajaxCallSync(
+        "/xmosp_xMOPRTRMateriale_Back",
+        {
+            Terminale: oApp.Terminale,
+            Cd_Operatore: oApp.Cd_Operatore,
+            Cd_MG_P: materiale.Cd_MG_P,
+            Cd_MGUbicazione_P: materiale.Cd_MGUbicazione_P,
+            Cd_AR: materiale.Cd_AR,
+            Cd_ARLotto: materiale.Cd_ARLotto,
+            Quantita_P: materiale.Quantita,
+            Quantita_A: trasferimento.Quantita_A,
+            Cd_ARMisura: trasferimento.Cd_ARMisura,
+            FattoreToUM1: fU.ToDecimal(trasferimento.FattoreToUM1),
+            Note: trasferimento.Note,
+            Cd_MG_A: materiale.Cd_MG_A,
+            Cd_MGUbicazione_A: trasferimento.Cd_MGUbicazione_A,
+            xMOCompleta: trasferimento.xMOCompleta,
+        },
+        function (mydata) {
             var r = $.parseJSON(mydata.d);
             if (r[0].Result > 0) {
                 Ajax_xmofn_xMOPRMPLinea();
@@ -3931,11 +3451,9 @@ function Ajax_xmosp_xMOPRTRMateriale_Back() {
             } else {
                 PopupMsg_Show("ERRORE", r[0].Result, r[0].Msg);
             }
-        },
-        error: function (XMLHttpRequest, textStatus, errorThrown) {
-            Ajax_ErrOut(XMLHttpRequest, textStatus, errorThrown);
         }
-    });
+    );
+
 }
 
 function Ajax_xmosp_xMOPRTRMateriale_Drop() {
@@ -3945,28 +3463,22 @@ function Ajax_xmosp_xMOPRTRMateriale_Drop() {
     // Recupero i valori della pagina
     var trasferimento = GetBindedValues('[data-key="Input"]');
 
-    var Params = {
-        Terminale: oApp.Terminale,
-        Cd_Operatore: oApp.Cd_Operatore,
-        Cd_MG_P: materiale.Cd_MG_P,
-        Cd_MGUbicazione_P: materiale.Cd_MGUbicazione_P,
-        Cd_AR: materiale.Cd_AR,
-        Cd_ARLotto: materiale.Cd_ARLotto,
-        Quantita_P: materiale.Quantita,
-        Quantita_A: trasferimento.Quantita_A,
-        Cd_ARMisura: trasferimento.Cd_ARMisura,
-        FattoreToUM1: fU.ToDecimal(trasferimento.FattoreToUM1),
-        Note: trasferimento.Note,
-    };
-
-    $.ajax({
-        url: "Moovi.aspx/xmosp_xMOPRTRMateriale_Drop",
-        async: false,
-        data: JSON.stringify(Params),
-        type: "POST",
-        dataType: "json",
-        contentType: "application/json; charset=utf-8",
-        success: function (mydata) {
+    ajaxCallSync(
+        "/xmosp_xMOPRTRMateriale_Drop",
+        {
+            Terminale: oApp.Terminale,
+            Cd_Operatore: oApp.Cd_Operatore,
+            Cd_MG_P: materiale.Cd_MG_P,
+            Cd_MGUbicazione_P: materiale.Cd_MGUbicazione_P,
+            Cd_AR: materiale.Cd_AR,
+            Cd_ARLotto: materiale.Cd_ARLotto,
+            Quantita_P: materiale.Quantita,
+            Quantita_A: trasferimento.Quantita_A,
+            Cd_ARMisura: trasferimento.Cd_ARMisura,
+            FattoreToUM1: fU.ToDecimal(trasferimento.FattoreToUM1),
+            Note: trasferimento.Note,
+        },
+        function (mydata) {
             var r = $.parseJSON(mydata.d);
             if (r[0].Result > 0) {
                 Ajax_xmofn_xMOPRMPLinea();
@@ -3974,11 +3486,9 @@ function Ajax_xmosp_xMOPRTRMateriale_Drop() {
             } else {
                 PopupMsg_Show("ERRORE", r[0].Result, r[0].Msg);
             }
-        },
-        error: function (XMLHttpRequest, textStatus, errorThrown) {
-            Ajax_ErrOut(XMLHttpRequest, textStatus, errorThrown);
         }
-    });
+    );
+
 }
 
 function Ajax_xmosp_xMOPRTRMateriale_ToBL() {
@@ -3989,30 +3499,24 @@ function Ajax_xmosp_xMOPRTRMateriale_ToBL() {
     // Recupero i valori della pagina
     var trasferimento = GetBindedValues('[data-key="Input"]');
 
-    var Params = {
-        Terminale: oApp.Terminale,
-        Cd_Operatore: oApp.Cd_Operatore,
-        Cd_PrRisorsa: bolla.Cd_PrRisorsa,
-        Cd_MG_P: materiale.Cd_MG_P,
-        Cd_MGUbicazione_P: materiale.Cd_MGUbicazione_P,
-        Quantita_P: materiale.Quantita,
-        Cd_ARLotto: materiale.Cd_ARLotto,
-        Cd_ARMisura: trasferimento.Cd_ARMisura,
-        FattoreToUM1: fU.ToDecimal(trasferimento.FattoreToUM1),
-        Id_PrBLAttivita_A: bolla.Id_PrBLAttivita,
-        Id_PrBLMateriale_A: bolla.Id_PrBLMateriale,
-        Quantita_A: trasferimento.Quantita_A,
-        Note: trasferimento.Note,
-    };
-
-    $.ajax({
-        url: "Moovi.aspx/xmosp_xMOPRTRMateriale_ToBL",
-        async: false,
-        data: JSON.stringify(Params),
-        type: "POST",
-        dataType: "json",
-        contentType: "application/json; charset=utf-8",
-        success: function (mydata) {
+    ajaxCallSync(
+        "/xmosp_xMOPRTRMateriale_ToBL",
+        {
+            Terminale: oApp.Terminale,
+            Cd_Operatore: oApp.Cd_Operatore,
+            Cd_PrRisorsa: bolla.Cd_PrRisorsa,
+            Cd_MG_P: materiale.Cd_MG_P,
+            Cd_MGUbicazione_P: materiale.Cd_MGUbicazione_P,
+            Quantita_P: materiale.Quantita,
+            Cd_ARLotto: materiale.Cd_ARLotto,
+            Cd_ARMisura: trasferimento.Cd_ARMisura,
+            FattoreToUM1: fU.ToDecimal(trasferimento.FattoreToUM1),
+            Id_PrBLAttivita_A: bolla.Id_PrBLAttivita,
+            Id_PrBLMateriale_A: bolla.Id_PrBLMateriale,
+            Quantita_A: trasferimento.Quantita_A,
+            Note: trasferimento.Note,
+        },
+        function (mydata) {
             var r = $.parseJSON(mydata.d);
             if (r[0].Result > 0) {
                 Ajax_xmofn_xMOPRMPLinea();
@@ -4020,414 +3524,64 @@ function Ajax_xmosp_xMOPRTRMateriale_ToBL() {
             } else {
                 PopupMsg_Show("ERRORE", r[0].Result, r[0].Msg);
             }
-        },
-        error: function (XMLHttpRequest, textStatus, errorThrown) {
-            Ajax_ErrOut(XMLHttpRequest, textStatus, errorThrown);
         }
-    });
+    );
+
 }
 
 
 function Ajax_xmofn_xMOLinea(callback) {
 
-    var Params = {
-        Terminale: oApp.Terminale,
-        Cd_Operatore: oApp.Cd_Operatore,
-    };
-
-    $.ajax({
-        url: "Moovi.aspx/xmofn_xMOLinea",
-        async: false,
-        data: JSON.stringify(Params),
-        type: "POST",
-        dataType: "json",
-        contentType: "application/json; charset=utf-8",
-        success: function (mydata) {
+    ajaxCallSync(
+        "/xmofn_xMOLinea",
+        {
+            Terminale: oApp.Terminale,
+            Cd_Operatore: oApp.Cd_Operatore,
+        },
+        function (mydata) {
             oPrg.PRMP.dtLinea = $.parseJSON(mydata.d);
 
             if (callback != null)
                 callback();
-        },
-        error: function (XMLHttpRequest, textStatus, errorThrown) {
-            Ajax_ErrOut(XMLHttpRequest, textStatus, errorThrown);
         }
-    });
+    );
+
 }
 
 function Ajax_xmofn_xMOPRMPLinea() {
-    var Params = {
-        Terminale: oApp.Terminale,
-        Cd_Operatore: oApp.Cd_Operatore,
-        Cd_xMOLinea: $(ActivePage()).find('[data-bind="Cd_xMOLinea"]').val()
-    };
 
-    $.ajax({
-        url: "Moovi.aspx/xmofn_xMOPRMPLinea",
-        async: false,
-        data: JSON.stringify(Params),
-        type: "POST",
-        dataType: "json",
-        contentType: "application/json; charset=utf-8",
-        success: function (mydata) {
+    ajaxCallSync(
+        "/xmofn_xMOPRMPLinea",
+        {
+            Terminale: oApp.Terminale,
+            Cd_Operatore: oApp.Cd_Operatore,
+            Cd_xMOLinea: $(ActivePage()).find('[data-bind="Cd_xMOLinea"]').val()
+        },
+        function (mydata) {
             oPrg.PRMP.dt = JSON.parse(mydata.d);
             oPrg.PRMP.keyLinea = oPrg.PRMP.dtLinea.indexOf(oPrg.PRMP.dtLinea.find(function (item) { return item.Cd_xMOLinea == Params.Cd_xMOLinea }));
             PRMPMateriale_Load_Table();
-        },
-        error: function (XMLHttpRequest, textStatus, errorThrown) {
-            Ajax_ErrOut(XMLHttpRequest, textStatus, errorThrown);
         }
-    });
+    );
 }
 
 function Ajax_xmofn_xMOPRBLMateriali_4BL() {
-    var Params = {
-        Terminale: oApp.Terminale,
-        Cd_Operatore: oApp.Cd_Operatore,
-        Cd_AR: oPrg.PRMP.ActiveRecord().Cd_AR
-    };
 
-    $.ajax({
-        url: "Moovi.aspx/xmofn_xMOPRBLMateriali_4BL",
-        async: false,
-        data: JSON.stringify(Params),
-        type: "POST",
-        dataType: "json",
-        contentType: "application/json; charset=utf-8",
-        success: function (mydata) {
+    ajaxCallSync(
+        "/xmofn_xMOPRBLMateriali_4BL",
+        {
+            Terminale: oApp.Terminale,
+            Cd_Operatore: oApp.Cd_Operatore,
+            Cd_AR: oPrg.PRMP.ActiveRecord().Cd_AR
+        },
+        function (mydata) {
             oPrg.PRMP.dt4BL = JSON.parse(mydata.d);
             PRMPMateriali_Bolle_Load();
-        },
-        error: function (XMLHttpRequest, textStatus, errorThrown) {
-            Ajax_ErrOut(XMLHttpRequest, textStatus, errorThrown);
         }
-    });
-}
-
-
-// -------------------------------------------------
-// ENDREGION: CHIAMATE AJAX
-// -------------------------------------------------
-// -------------------------------------------------
-// #1.20 REGION: BARCODE
-// -------------------------------------------------
-
-// Carica i tipi di Barcode
-function Barcode_Load(div_bc) {
-    var i = 0;
-    var s = $(div_bc).find("select");
-
-    //aggiunge tutti i bc alla lista 
-    $.each(oPrg.BC.BarcodeList, function (key, obj) {
-        s.append($('<option>', {
-            value: obj.Cd_xMOBC,
-            text: obj.Descrizione,
-            pos: obj.Posizione,
-            tipo: obj.Tipo,
-            num: (i += 1)
-        }));
-    });
-
-    //Seleziona il primo elemento con posizione più bassa
-    $(s).val($(s).find("[pos='1']:first").val());
-
-    // Se mi trovo in pgRLRig gestisco il ck di atuoconferma della lettura
-    if (oPrg.ActivePageValue == enumPagine.pgRLRig) {
-        if ($(div_bc).find("option:first").attr("Tipo") == 2) {
-            $(div_bc).find(".ck-autoconfirm").attr("disabled", "disabled").attr("checked", false);
-        }
-        else {
-            $(div_bc).find(".ck-autoconfirm").removeAttr("disabled").attr("checked", true);
-        }
-    }
-}
-
-function BarcodeDetail_Update(id_lettura, Result, Messaggio) {
-    //Salva la lettura letta
-    if (Result == 1) {
-        //Tutto ok
-        // fnl i -> img and change the attribute src
-        $("#DetailBarcode li[lettura=" + id_lettura + "]").find("img").attr("src", "icon/Valido.svg");
-    } else {
-        //Errore
-        // fnl i -> img and change the attribute src
-        $("#DetailBarcode li[lettura=" + id_lettura + "]").find(".messaggio").html(Messaggio);
-        $("#DetailBarcode li[lettura=" + id_lettura + "]").find("img").attr("src", "icon/NonValido.svg");
-        var nErr = fU.ToInt32($("#DetailBarcode label.err").text());
-        $("#DetailBarcode label.err").text(nErr + 1);
-    }
+    );
 
 }
 
-// Validazione di un codice BC di tipo SSCC 
-function Ajax_Sscc_Validate(bc_val, id_lettura, EseguiControlli) {
-    Params = JSON.stringify({
-        Terminale: oApp.Terminale,
-        Cd_Operatore: oApp.Cd_Operatore,
-        Id_xMORL: oPrg.Id_xMORL_Edit,
-        Cd_xMOBC: oPrg.BC.CurrentBC.Cd_xMOBC,
-        Sscc: bc_val,
-        EseguiControlli: fU.ToBool(EseguiControlli),
-        id_lettura: id_lettura
-    });
-
-    //------------------------------------------------------------
-    // ATTENZIONE! La funzione è sincrona se il Detail è chiuso!!!
-    //------------------------------------------------------------
-    $.ajax({
-        url: "Moovi.aspx/xmosp_Sscc_Validate",
-        async: oPrg.BC.DetailOn,
-        data: Params,
-        type: "POST",
-        dataType: "json",
-        contentType: "application/json; charset=utf-8",
-        success: function (mydata) {
-            var r = $.parseJSON(mydata.d);
-
-            // (2):richiesto intervento dell'operatore
-            if (r[0].Result == 2) {
-
-                //Memorizza gli attributi pa ripassare alla funzione Ajax_Sscc_Validate
-                $("#Popup_Sscc_OpConfirm .sscc-ok").attr("bc_val", bc_val).attr("id_lettura", id_lettura);
-                //Apre il popup per la conferma operatore
-                $("#Popup_Sscc_OpConfirm").show().find(".msg").text(r[0].Result + ": " + r[0].Messaggio);
-
-            } else {
-
-                //Aggiorna il detail 
-                if (oPrg.BC.CurrentBC.Detail) {
-
-                    BarcodeDetail_Update(id_lettura, r[0].Result, r[0].Messaggio)
-                }
-
-                //Se il detail non è aperto ed è presente un errore lo mostra
-                if (!oPrg.BC.DetailOn && r[0].Result <= 0) {
-                    //Mostra l'errore
-                    PopupMsg_Show("ERRORE", r[0].Result, r[0].Messaggio);
-                }
-                //Aggiorna le righe delle letture
-                Ajax_xmofn_xMORLRig_AR();
-            }
-
-        },
-        error: function (XMLHttpRequest, textStatus, errorThrown) {
-            Ajax_ErrOut(XMLHttpRequest, textStatus, errorThrown);
-        }
-
-    });
-}
-
-// Creazione SSCC
-function Barcode_Detail_AddBc(bc_val) {
-    //Restituisce la posizione inserita del Bc
-    return oPrg.BC.Detail_BcAdd(bc_val);
-}
-
-//Seleziona il barcode da posizione e numero
-function Barcode_SelByPos(pos, num) {
-
-    var p = $("#" + oPrg.ActivePageId);
-
-    var bc_next = $(p).find(".barcode select").find("[pos='" + pos + "'][num='" + num + "']").val();
-    var setIt = !fU.IsEmpty(bc_next);
-    if (setIt) {
-        //Imposta il bc
-        $(p).find(".barcode select").val(bc_next);
-        //Riposizione la classe BC alla selezione
-        Barcode_SelType();
-    }
-
-    return (setIt);
-
-}
-
-// Gestisce la selezione del barcode per automatizzare l'interfaccia 
-function Barcode_SelType() {
-    //Memorizza l'idx corrente
-    oPrg.BC.SetCurrentBC(fU.ToString($("#" + oPrg.ActivePageId).find(".barcode option:selected").val()));
-    //Se il BC corrente possiede il detail mostra l'incona per l'inserimento
-    fU.ShowIf($("#" + oPrg.ActivePageId).find(".barcode i"), oPrg.BC.CurrentBC.Detail);
-}
-
-// Apre il detail dell'inserimento dei Bc 
-function Detail_Barcode() {
-    //Richiama la funzione centralizzata del detail del barcode
-    oPrg.BC.Detail_Open()
-}
-
-
-function Barcode_Interpreter_ok(id_lettura) {
-
-    var p = $("#" + oPrg.ActivePageId);
-
-    //Interpreta il tipo di barcode
-    // oPrg.BC.CurrentBC.Tipo
-    switch (oPrg.BC.CurrentBC.Tipo) {
-        case SSCC:
-            //Verifica il barcode letto e salva i dati come rilevazione letta
-            //La funzione restituisce un messaggio di conferma per il detail
-            Ajax_Sscc_Validate(oPrg.BC.CurrentStr, id_lettura, true);
-            //Se non è visibile il dettaglio imposta il focus sul campo SSCC
-            if (!oPrg.BC.DetailOn)
-                $("#pgRLRig .div-barcode").find("input:first").focus().select();
-            break;
-        case GS1:
-            //var i;
-            //lettura effettuata a buon fine
-            $.each(oPrg.BC.Result, function (key, val) {
-                //dentro la mia variabile result è prensente:
-                //key = nome della colonna intepretata, val = valore intepretata
-                //i = $(p).find("input[name='" + key + "']");
-
-                switch (key.toLowerCase()) {
-                    case "quantita":
-                        //Imposta i default dalla parametrizzazione del DOC
-                        switch (oPrg.drDO.xMOQuantitaDef) {
-                            case 0: //nessuno 
-                                break;
-                            case 1: //Una unita: sovrascrivo il valore letto
-                                val = "1";
-                                break;
-                            case 2: //Totale prelevabile;
-                                // ### da sviluppare
-                                break;
-                        }
-                        break;
-                }
-
-                //ASSEGNA il valore e il focus del campo (in modo da scatenarne i refresh)
-                $(p).find("input[name='" + key + "']").val(val);
-                //Scateno gli on-focus post assegnazione valore (esempio il GS1 contiene la lettura di Cd_AR ma non quello della quantità)
-                switch (key.toLowerCase()) {
-                    case "cd_ar":
-                        // ho inserito il codice articolo: devo in modo manuale settare il focus sulla quantità
-                        $(p).find("input[name='Quantita']").focus();
-                        break;
-                    // In datascadenza non va fatto il focus per evitare che in android venga aperto il datapicker
-                    case "datascadenza":
-                        break;
-                    default:
-                        $(p).find("input[name='" + key + "']").focus();
-                }
-            });
-            break;
-        case STD:
-            //lettura effettuata a buon fine
-            $.each(oPrg.BC.Result, function (key, val) {
-                //Imposta il valore e il focus del campo (in modo da scatenarne i refresh)
-                $(p).find("input[name='" + key + "']").val(val).focus();
-                switch (key.toLowerCase()) {
-                    case "cd_ar":
-                        // ho inserito il codice articolo: devo in modo manuale settare il focus sulla quantità
-                        $(p).find("input[name='Quantita']").focus();
-                        break;
-                }
-            });
-            break;
-        default:
-            err = "Non ho ENUM di interpretazione del Barcode!!";
-    }
-
-
-}
-
-function Detail_MultiBarcode_Load(id_lettura) {
-
-    $("#Detail_MultiBarcode .li-bc").remove();
-    $("#Detail_MultiBarcode .codBC").text(oPrg.BC.CurrentStr);
-
-    var li = $("#Detail_MultiBarcode .template").clone().addClass("li-bc").removeAttr("style");
-
-    for (i = 0; i < oPrg.BC.ResultList.length; i++) {
-        $("#Detail_MultiBarcode ul").append(BC_Template(li.clone(), oPrg.BC.ResultList[i], i, id_lettura));
-    }
-
-    $("#Detail_MultiBarcode").show();
-}
-
-function BC_Template(li, item, key, id_lettura) {
-
-    li.attr("list", key);
-    li.find(".codice").text(item);
-
-    li.on("click", function () {
-        // Imposto il barcode selezionato come quello 
-        oPrg.BC.AssignFrom(key);
-        // scateno l'assegnazione
-        Barcode_Interpreter_ok(id_lettura);
-        // Chiudo il detail
-        $("#Detail_MultiBarcode").hide();
-    });
-
-    return li;
-}
-
-// Lettura dei barcode 
-function Barcode_Interpreter(bc_val, id_lettura) {
-    var err = "";
-    // **************************** BC MULTIPLI START *****************
-    //tramite la classe barcode, la variabile BC eseugo il prototype di lettura
-    //Tramite il tipo di barcode selezionato e il valore viene dato il risultato 
-    if (oPrg.BC.Read(bc_val)) {
-        if (oPrg.BC.ResultList.length > 1) {
-            // Aprire il poup dove vanno stampate tutte le interpretazioni
-            Detail_MultiBarcode_Load(id_lettura);
-        } else {
-            Barcode_Interpreter_ok(id_lettura);
-        }
-        // **************************** BC MULTIPLI END *****************
-
-    } else {
-        //Aggiungo il barcode come errato
-        err = "barcode non interpretato!!";
-    }
-    if (err != "") {
-        //mostra l'errore nel dettaglio (se gestito dal BC)
-        BarcodeDetail_Update(id_lettura, -999, err);
-        //mostra l'errore se il dettaglio è chiuso
-        if (!$("#DetailBarcode").is(":visible")) {
-            PopupMsg_Show("Errore", "B1", err);
-        }
-    }
-    return (fU.IsEmpty(err));
-}
-
-
-// Interpreta l'alias nel barcode letto  
-function Barcode_Interpreter_Alias(bc_val) {
-    var err = "";
-    var p = $("#" + oPrg.ActivePageId);
-    // verifica se la struttura del BC è codificata e quindi risulta interpretabile
-    if (oPrg.BC.Read(bc_val)) {
-
-        //Interpreta il tipo di barcode
-        switch (oPrg.BC.CurrentBC.Tipo) {
-            case SSCC:
-                break;
-            case STD:
-            case GS1:
-                //lettura effettuata a buon fine
-                $.each(oPrg.BC.Result, function (key, val) {
-                    if (key.toLowerCase() == 'cd_ar') {
-                        //ASSEGNA il valore al cmapo alias
-                        $(p).find("input[name='" + oApp.TipoAA.toUpperCase() + "']").val(val);
-                        return;
-                    }
-                });
-                break;
-            default:
-                err = "ENUM di interpretazione del Barcode inesistente!!";
-        }
-    } else {
-        err = 'Barcode non interpretabile!';
-    }
-
-    return (fU.IsEmpty(err));
-}
-
-
-// -------------------------------------------------
-// ENDREGION: BARCODE
-// -------------------------------------------------
 // -------------------------------------------------
 // #1.30 REGION: FUNZIONI UI
 // -------------------------------------------------
@@ -4559,9 +3713,11 @@ function pgRL_UI_Edit() {
         $("#pgRL [name='Cd_CFDest']").val(oPrg.drRL.Cd_CFDest);
         $("#pgRL [name='CFDest_Descrizione']").text(oPrg.drRL.CFDest_Descrizione);
         $("#pgRL [name='Cd_DOSottoCommessa']").val(oPrg.drRL.Cd_DOSottoCommessa);
-        $("#pgRL [name='DataDoc']").val(fU.DateFormatToBrowserLang(fU.ToDate(oPrg.drRL.DataDoc)));
+        //$("#pgRL [name='DataDoc']").val(fU.DateFormatToBrowserLang(fU.ToDate(oPrg.drRL.DataDoc)));
+        $("#pgRL [name='DataDoc']").val(fU.ToStandardDate(oPrg.drRL.DataDoc));
         $("#pgRL [name='NumeroDocRif']").val(oPrg.drRL.NumeroDocRif);
-        $("#pgRL [name='DataDocRif']").val(fU.DateFormatToBrowserLang(fU.ToDate(oPrg.drRL.DataDocRif)));
+        //$("#pgRL [name='DataDocRif']").val(fU.DateFormatToBrowserLang(fU.ToDate(oPrg.drRL.DataDocRif)));
+        $("#pgRL [name='DataDocRif']").val(fU.ToStandardDate(oPrg.drRL.DataDocRif));
         $("#pgRL [name='Cd_MG_P']").val(oPrg.drRL.Cd_MG_P);
         $("#pgRL [name='Cd_MG_A']").val(oPrg.drRL.Cd_MG_A);
         $("#pgRL [name='Cd_xMOLinea']").val(oPrg.drRL.Cd_xMOLinea);
@@ -4573,12 +3729,24 @@ function pgRL_UI_Edit() {
 }
 
 function pgRLRig_UI() {
-
     // Se non esiste prelievo per la rilevazione nascondo la colonna evadibile
     fU.ShowIf($("#pgRLRig .lg-table .QtaEvadibile"), oPrg.drRL.CountPrelievi <= 0 ? false : true)
 
     // Visualizzo il div della packing se abilitata per il documento corrente
     fU.ShowIf($("#pgRLRig .div-packinglist"), (oPrg.drDO.PkLstEnabled));
+
+    // Visualizzo il campo Fattore se gestito
+    fU.ShowIf($("#pgRLRig .div-umfatt"), oPrg.drDO.xMOUMFatt > 0 ? true : false);
+    switch (oPrg.drDO.xMOUMFatt) {
+        case 1:
+            $("#pgRLRig .div-umfatt").find(".mo-lbl").text("Fattore");
+            break;
+        case 2:
+            $("#pgRLRig .div-umfatt").find(".mo-lbl").text("x Qta UM principale");
+            break;
+        default:
+            break;
+    }
 
     // Visualizzo la commessa se gestita 
     fU.ShowIf($("#pgRLRig .div-com"), oPrg.drDO.xMODOSottoCommessa);
@@ -4674,6 +3842,8 @@ function pgRLRig_UI() {
     if (!fU.IsEmpty(oPrg.drDO.xMOExtFld)) {
         ExtFld_Load();
     }
+
+    onRowCountChange();
 }
 
 // Gestione icon delete e dettagglio in base alla presenza di letture
@@ -4697,11 +3867,17 @@ function pgRLPiede_UI() {
     // Se non esiste prelievo per la rilevazione nascondo le card di riepilogo
     fU.ShowIf($("#pgRLPiede .mo-card"), oPrg.drRL.CountPrelievi <= 0 ? false : true)
 
+    //Se è presente un codice spedizione visualizza la possibilità di chiusura
+    if (oPrg.Key == "SP" || oPrg.Key == "SPA")
+        $("#pgRLPiede div .spedizione").show();
+    else $("#pgRLPiede div .spedizione").hide();
+
 
     $("#pgRLPiede .desc-doc").text(oPrg.drDO.Cd_DO + ' - ' + oPrg.drDO.DO_Descrizione);
     $("#pgRLPiede .id-doc").text(oPrg.Id_xMORL_Edit);
     $("#pgRLPiede .cliente").html(oPrg.drRL.Cd_CF + '&nbsp;' + fU.ToString(oPrg.drRL.CF_Descrizione));
-    $("#pgRLPiede .data-doc").text(fU.DateJsonToDate(oPrg.drRL.DataDoc));
+    $("#pgRLPiede .data-doc").text(fU.formatDateDDMMYYYY(oPrg.drRL.DataDoc));
+    //$("#pgRLPiede .data-doc").text(fU.DateJsonToDate(oPrg.drRL.DataDoc));
 
     //Mostra la Targa e il Caricatore se gestiti dal doc
     fU.ShowIf($("#pgRLPiede .div-trcr"), oPrg.drDO.xMOTarga);
@@ -4784,7 +3960,9 @@ function pgTR_Edit_UI() {
         $("#pgTR .lb-doc-id").text(fU.ToString(oPrg.Id_xMOTR_Edit));
 
         $("#pgTR input[name='Descrizione']").val(oPrg.drTR.Descrizione);
-        $("#pgTR input[name='DataMov']").val(fU.DateFormatToBrowserLang(fU.ToDate(oPrg.drTR.DataMov)));
+        $("#pgTR input[name='DataMov']").val(fU.ToStandardDate(oPrg.drTR.DataMov));
+
+
         $("#pgTR input[name='Cd_DOSottoCommessa']").val(oPrg.drTR.Cd_DOSottoCommessa);
 
         $("#pgTR input[name='Cd_MG_P']").val(oPrg.drTR.Cd_MG_P);
@@ -4845,7 +4023,8 @@ function pgTRPiede_UI() {
 
     $("#pgTRPiede .desc-doc").text($("#pgTR input[name='Descrizione']").val());
     $("#pgTRPiede .id-doc").text(oPrg.Id_xMOTR_Edit);
-    $("#pgTRPiede .data-doc").text($("#pgTR input[name='DataMov']").val());
+    $("#pgTRPiede .data-doc").text(fU.formatDateDDMMYYYY($("#pgTR input[name='DataMov']").val()));
+    //$("#pgTRPiede .data-doc").text($("#pgTR input[name='DataMov']").val());
 
     // Carica tutti i listener (anche senza devices config.) e seleziona quello corrente 
     Listener_Load(false);
@@ -4855,7 +4034,8 @@ function pgSMPiede_UI() {
 
     $("#pgSMPiede .desc-doc").text($("#pgSM input[name='Descrizione']").val());
     $("#pgSMPiede .id-doc").text(oPrg.Id_xMOTR_Edit);
-    $("#pgSMPiede .data-doc").text(fU.DateJsonToDate(oPrg.drTR.DataMov));
+    $("#pgSMPiede .data-doc").text(fU.ToStandardDate(oPrg.drTR.DataMov));
+    //$("#pgSMPiede .data-doc").text(fU.DateJsonToDate(oPrg.drTR.DataMov));
 
     // Carica tutti i listener (anche senza devices config.) e seleziona quello corrente 
     Listener_Load(false);
@@ -5074,10 +4254,16 @@ function pgAA_UI() {
     $("#pgAA .first-focus:visible").first().focus().select().addClass("mo-br-orange");
 }
 
-function pgMGDisp_UI() {
 
+function onSetResultsStatus(e) {
+    setResultsStatus(true);
+}
+
+function pgMGDisp_UI() {
     DivToggle_Execute($("#pgMGDisp .div-accordion"), true);
-    $("#pgMGDisp .div-giac").hide();
+    $("#pgMGDisp .div-filtri :input[type='text'], #pgMGDisp .div-filtri :input[type='checkbox']").off("change", onSetResultsStatus);
+    $("#pgMGDisp .div-filtri :input[type='text'], #pgMGDisp .div-filtri :input[type='checkbox']").on("change", onSetResultsStatus);
+    Clear_MGDisp();
 }
 
 function pgSM_UI() {
@@ -5157,14 +4343,13 @@ function pgSMRig_T_UI() {
 // Crea i campi input personalizzati in base alla struttura dell'xml presente nella configurazione del documento e li visualizza
 function ExtFld_Load() {
 
-    var p = $("#" + oPrg.ActivePageId);
     var dt = oPrg.drDO.xMOExtFld; // nella varbile è contenuto un array di oggetti (conversione dell xml in C# in un datatable)
 
     // Cancello tutti i campi personalizzati già presentinella pagina
-    $(p).find(".div-extfld-pers").remove();
+    ActivePage().find(".div-extfld-pers").remove();
 
     // Copio il template
-    var input = $(p).find(".div-extfld").find(".template_extfld").clone().removeAttr("style").addClass("div-extfld-pers");
+    var input = ActivePage().find(".div-extfld").find(".template_extfld").clone().removeAttr("style").addClass("div-extfld-pers");
     var inp;
 
     for (var i = 0; i < dt.length; i++) {
@@ -5173,7 +4358,7 @@ function ExtFld_Load() {
         $(inp).find("input").attr("name", dt[i].nome);
         $(inp).find("input").attr("requisite", fU.ToBool(dt[i].richiesto));
         $(inp).find("label").text(dt[i].descrizione);
-        $(p).find(".div-extfld").append(inp);
+        ActivePage().find(".div-extfld").append(inp);
     }
 }
 
@@ -5387,6 +4572,10 @@ function DOAperti_Load(dt) {
 function DORistampa_Load(dt) {
     //Verifico che il dt abbia delle righe
     if (dt.length > 0) {
+        if (!oPrg.drDO) {
+            oPrg.drDO = oApp.dtDO[dt[0].Cd_DO];
+        }
+
         var li = $("#pgDocRistampa .template").clone().removeAttr("style").addClass("li-doc");
         for (var i = 0; i < dt.length; i++) {
             $("#pgDocRistampa ul").append(DORistampa_Template(li.clone(), dt[i], i));
@@ -5451,25 +4640,50 @@ function xListaCarico_Load(dtLdc) {
     }
 }
 
-function pgRLRig_AR_Load(dt) {
+function pgRLRig_AR_Load() {
     //Verifico che il dt abbia delle righe
+    var dt = oPrg.RL.dtRLRig_AR;
     if (dt.length > 0) {
+
+        showFor_W44716() // pers
+
         var tr1 = $("#pgRLRig .template").clone().removeAttr("style").addClass("tr-rigprel");
         var tr2 = $("#pgRLRig .template_ARDesc").clone().removeAttr("style").addClass("tr-rigprel tr-ardesc");
+
+
         for (var i = 0; i < dt.length; i++) {
             $("#pgRLRig table").append(pgRLRig_AR_Template(tr1.clone(), dt[i], i));
             $("#pgRLRig table").append(pgRLRig_ARDesc_Template(tr2.clone(), dt[i], i));
         }
+
+        var W44716 = 44716; // per fare le prove sostituire con il proprio nuero di licenza
+        if (oApp.LicF_Id == W44716) {
+            // Mostro o nascondo la colona Ubicazione in funzione della presenza o l'assenza della colona Cd_MGUbicazione nei dati 
+            // ricevuti dal server
+            if (dt[0].hasOwnProperty("ExtField")) {
+                ActivePage().find("th.Cd_MGUbicazione, td.Cd_MGUbicazione").show()
+                ActivePage().find("tr.tr-ardesc").find("td.Descrizione").attr("colspan", "3");
+            } else {
+                ActivePage().find("th.Cd_MGUbicazione, td.Cd_MGUbicazione").hide().removeClass("cl-ardesc tr-ardesc");
+                ActivePage().find("tr.tr-ardesc").find("td.Descrizione").attr("colspan", "4");
+            }
+        }
+
+        $(window).resize();
     }
 }
 
 function pgTRRig_P_AR_Load(dt) {
     //Verifico che il dt abbia delle righe
     if (dt.length > 0) {
-        var tr = $("#pgTRRig_P .template").clone().removeAttr("style").addClass("tr-rigp").removeClass("template");
+        var tr = ActivePage().find(".template").clone().removeAttr("style").addClass("tr-rigp").removeClass("template");
         for (var i = 0; i < dt.length; i++) {
-            $("#pgTRRig_P table").append(pgTRRig_P_AR_Template(tr.clone(), dt[i], i));
+            ActivePage().find("table").append(pgTRRig_P_AR_Template(tr.clone(), dt[i], i));
         }
+        //var tr = $("#pgTRRig_P .template").clone().removeAttr("style").addClass("tr-rigp").removeClass("template");
+        //for (var i = 0; i < dt.length; i++) {
+        //    $("#pgTRRig_P table").append(pgTRRig_P_AR_Template(tr.clone(), dt[i], i));
+        //}
     }
 }
 
@@ -5484,16 +4698,20 @@ function pgTRRig_A_AR_Load(dt) {
 }
 
 function ARARMisura_Load(dt) {
+    var p = $("#" + oPrg.ActivePageId);
+
     // Recupero il select
-    var select = $(ActivePage()).find("select[name='Cd_ARMisura']");
+    var select = $(p).find("select[name='Cd_ARMisura']");
+
+
     // Verifico che il dt abbia delle righe
     if (dt.length > 0) {
         for (var i = 0; i < dt.length; i++) {
             $(select).append($('<option>', {
                 class: "op-um",
-                Cd_AR: dt[i].Cd_AR,
                 Cd_ARMisura: dt[i].Cd_ARMisura,
                 UMFatt: dt[i].UMFatt,
+                umdef: dt[i].DefaultMisura,
                 value: dt[i].Cd_ARMisura,
                 text: dt[i].Cd_ARMisura
             }));
@@ -5508,6 +4726,19 @@ function ARARMisura_Load(dt) {
             // Se l'ho trovato
             if ($(input).length > 0)
                 input.val(UMFatt);
+            //se richiesto dalla confgiurazione del documento imposta il valore
+            if (oPrg.drDO) {
+                switch (oPrg.drDO.xMOUMFatt) {
+                    case 1:
+                        ActivePage().find("input[name='UMFatt']").val(UMFatt);
+                        break;
+                    case 2:
+                        ActivePage().find("input[name='UMFatt']").val(1);
+                        break;
+                    default:
+                        break;
+                }
+            }
         });
 
         // Assegno il primo valore così da scatenare l'evento
@@ -5680,6 +4911,16 @@ function DetailPackingList_Load(dt, GRP) {
     if (dt.length > 0) {
 
         var PKL_Before = "";
+
+        // Se esiste PackListRef filtro la tabella ricevuta
+        if (ActivePage().attr("id") == $("#pgRLPK").attr("id")) {
+            var PackListRef = $("#pgRLPK label.PackListRef").text();
+            if (PackListRef.length > 0) {
+                dt = dt.filter(function (item, index) {
+                    return (item.PackListRef === PackListRef);
+                });
+            }
+        }
 
         //tr: testa UL corrente che contiene 
         var trULHead = $("#Detail_PackingList tr.template-ul-header").clone().removeAttr("style").removeClass("template-ul-header").addClass("pk-dati");
@@ -5913,8 +5154,11 @@ function PRTRAttivita_Load_Items() {
         // Nascondo gli altri filtri
         $(ActivePage()).find('[data-key="Filtri"]').hide();
 
+        //Elimina gli eventuali zeri a sinistra
+        while (searchQuery.charAt(0) == "0") { searchQuery = searchQuery.slice(1); }
+
         // Formatto il valore
-        searchQuery = searchQuery.toLowerCase();
+        searchQuery = searchQuery.toLowerCase().trim();
 
         // Filtro gli elementi
         dt = dt.filter(function (item) {
@@ -5948,6 +5192,11 @@ function PRTRAttivita_Load_Items() {
         // Imposto i valori
         $(li).find('[data-bind="Id_PrBL"]').html(item.Id_PrBL);
         $(li).find('[data-bind="Id_PrBLAttivita"]').html(item.Id_PrBLAttivita);
+        fU.ShowIf($(li).find('[data-bind="Mancante"]'), item.Mancante);
+        if (item.DaTrasferire)
+            $(li).find('[data-bind="Id_PrBLAttivita"]').addClass("w3-red");
+        else
+            $(li).find('[data-bind="Id_PrBLAttivita"]').removeClass("w3-red");
         $(li).find('[data-bind="Bolla"]').html("Bolla " + item.Bolla);
         $(li).find('[data-bind="Articolo"]').html(item.Articolo);
         $(li).find('[data-bind="Cd_xMOLinea"]').html(item.Cd_xMOLinea);
@@ -5962,18 +5211,42 @@ function PRTRAttivita_Load_Items() {
     });
 }
 
-function PRTRMateriali_Load() {
+function PRTRMateriali_Load(UsrAssign) {
     // Elemento dell'attività
     var attivita = oPrg.PRAV.dtBLA[oPrg.PRAV.keyBLA];
 
-    // ID dell'attività
-    $(ActivePage()).find('span[data-bind="Id_PrBL"]').text(attivita.Id_PrBL);
-    $(ActivePage()).find('span[data-bind="Id_PrBLAttivita"]').text(attivita.Id_PrBLAttivita);
+    // Valorizzo il riepilogo 
+    var riepilogo = $(ActivePage()).find('[data-key="Riepilogo"]');
+    riepilogo.find('span[data-bind="Id_PrBL"]').text(attivita.Id_PrBL);
+    riepilogo.find('label[data-bind="Bolla"]').text("Bolla " + attivita.Bolla);
+    riepilogo.find('span[data-bind="Id_PrBLAttivita"]').text(attivita.Id_PrBLAttivita);
+    if (attivita.DaTrasferire)
+        riepilogo.find('span[data-bind="Id_PrBLAttivita"]').addClass("w3-red");
+    else
+        riepilogo.find('span[data-bind="Id_PrBLAttivita"]').removeClass("w3-red");
+    riepilogo.find('label[data-bind="Fase"]').text(attivita.Descrizione + ' / ' + attivita.Articolo);
+    riepilogo.find('label[data-bind="Articolo"]').text(attivita.Articolo);
+    riepilogo.find('label[data-bind="Cd_ARLotto"]').text(attivita.Cd_ARLotto);
 
-    // Valorizzo il riepilogo dell'attività
-    $(ActivePage()).find('[data-key="Riepilogo"] label[data-bind="Bolla"]').text(attivita.Bolla);
-    $(ActivePage()).find('[data-key="Riepilogo"] label[data-bind="Articolo"]').text(attivita.Articolo);
-    $(ActivePage()).find('[data-key="Riepilogo"] label[data-bind="Cd_ARLotto"]').text(attivita.Cd_ARLotto);
+    var qtausr = $(ActivePage()).find('[data-key="QtaUsr"]');
+    if (!UsrAssign) {
+        qtausr.find('label[data-bind="QtaUsrP"]').text('QTA per ' + attivita.Cd_AR);
+        qtausr.find('input[data-bind="QtaUsrP"]').val(attivita.Quantita);
+        // Carico le unità di misura
+        Ajax_xmofn_ARARMisura2(attivita.Cd_AR, attivita.Cd_ARMisura);
+    }
+
+    qtausr.find('label[data-bind="PercTrasferitaP"]').text('tras. ' + Number(attivita.PercTrasferita).toFixed(1) + '%');
+    qtausr.find('label[data-bind="PercTrasferitaP"]').on('click', function () {
+        //Ricalcola la quantità di padre da produrre e aggiorna le righe
+        var QtaUsrP = Number(attivita.Quantita - (attivita.Quantita * attivita.PercTrasferita / 100)).toFixed(0);
+        if (QtaUsrP < 1) QtaUsrP = 1;
+        qtausr.find('input[data-bind="QtaUsrP"]').val(QtaUsrP);
+        Ajax_xmofn_xMOPRBLMateriali(QtaUsrP);
+    });
+
+    var PercTrasferita = 100;
+    var Traferisci = false;
 
     // Memorizzo la tabella
     var table = $(ActivePage()).find('table[data-key="Materiali"]');
@@ -5989,12 +5262,63 @@ function PRTRMateriali_Load() {
         var tr = $(template).clone();
         // Imposto i valori
         $(tr).find('[data-bind="Cd_AR"]').text(item.Cd_AR);
+        if (item.QtaTrasferita >= item.Consumo)
+            $(tr).find('[data-bind="Cd_AR"]').addClass("w3-green");
+        else
+            if (item.Mancante)
+                $(tr).find('[data-bind="Cd_AR"]').addClass("w3-red");
+        //else
+        //    $(tr).find('[data-bind="Cd_AR"]').removeClass("w3-green");
+
         $(tr).find('[data-bind="Cd_ARLotto"]').text(item.Cd_ARLotto);
-        $(tr).find('[data-bind="Qta"]').text(item.QtaTrasferita + '/' + item.Consumo);
+
+        var qta = '';
+        //Qta rossa se giacenza insufficiente
+        if (item.Giacenza < item.Consumo)
+            qta = '<span class="w3-text-red">' + Number(item.Consumo).toFixed(2) + '</span>';
+        else
+            qta = '<span>' + Number(item.Consumo).toFixed(2) + '</span>';
+
+        if (item.Consumo != item.ConsumoUsr)
+            qta = Number(item.ConsumoUsr).toFixed(2) + '(' + qta + ')';
+
+        qta = '/' + qta;
+
+        //Quantità da trasferire
+        //Eliminabile
+        //Trasferibile
+        if (item.QtaDaTrasferire != null) {
+            qta = '+' + Number(item.QtaTrasferita).toFixed(2) + qta;
+            qta = '<span class="w3-text-orange">' + Number(item.QtaDaTrasferire).toFixed(2) + '</span>' + qta;
+            $(tr).find('[data-bind="Del"]').html('<i data-action="delete" class="mi s20 red mo-pointer w3-right">delete_forever</i>');
+            Traferisci = true;
+        } else
+            qta = Number(item.QtaTrasferita).toFixed(2) + qta;
+
+        if (item.Mancante) {
+            $(tr).find('[data-bind="Del"]').html($(tr).find('[data-bind="Del"]').html() + '<span class="mo-tag w3-red">!</span>');
+        }
+
+        $(tr).find('[data-bind="Qta"]').html(qta);
+
+        //calcola la percentuale minima da trasferire
+        if (((item.QtaDaTrasferire + item.QtaTrasferita) / item.Consumo * 100) < PercTrasferita)
+            PercTrasferita = Number((item.QtaDaTrasferire + item.QtaTrasferita) / item.Consumo * 100).toFixed(1);
+
         $(tr).find('[data-bind="Cd_ARMisura"]').text(item.Cd_ARMisura);
-        $(tr).on('click', function () {
+        $(tr).on('click', function (event) {
+            //Punta al materiale corrente
             oPrg.PRAV.keyBLM = oPrg.PRAV.dtBLM.indexOf(item);
-            PRTRMateriali_Trasferimento_Load();
+            //elimina o apre la riga
+            if (event.target.dataset.action && event.target.dataset.action == 'delete') {
+
+                var del = confirm("Eliminare i materiali da trasferire per l'articolo " + oPrg.PRAV.dtBLM[oPrg.PRAV.keyBLM].Cd_AR + "?");
+                if (del == true) {
+                    Ajax_xmosp_xMOPRTRRig_Delete(oPrg.PRAV.dtBLM[oPrg.PRAV.keyBLM].Id_PrBLMateriale);
+                }
+            }
+            else
+                PRTRMateriali_Trasferimento_Load();
         });
 
         // Trasferimento completato
@@ -6005,42 +5329,52 @@ function PRTRMateriali_Load() {
         $(table).append(tr);
     });
 
+    //Gestione trasferimento
+    fU.ShowIf(ActivePage().find('div[data-bind="Trasferisci"]'), Traferisci)
+    ActivePage().find('input[data-bind="PercTrasferita"]').val(PercTrasferita);
+
     // Switch dei div
     $(ActivePage()).find('[data-key="Trasferimento"]').hide();
     $(ActivePage()).find('[data-key="Lista"]').show();
+
+    setTimeout(function () { $(ActivePage()).find('[data-key="QtaUsr"] input[data-bind="QtaUsrP"]').focus().select(); }, 250);
 }
 
 function PRTRMateriali_Trasferimento_Load() {
-    // Pulizia degli input della pagina
-    $(ActivePage()).find('input, textarea').val('');
 
     // Materiale
     var materiale = oPrg.PRAV.dtBLM[oPrg.PRAV.keyBLM];
 
     // Mostro i valori sulla pagina
-    $(ActivePage()).find('[data-bind="Cd_AR"]').text(materiale.Cd_AR);
-    $(ActivePage()).find('input[name="Cd_AR"]').val(materiale.Cd_AR);
-    $(ActivePage()).find('[data-bind="Descrizione"]').text(materiale.Descrizione);
-    $(ActivePage()).find('[data-bind="Cd_ARLotto"]').text(materiale.Cd_ARLotto);
-    $(ActivePage()).find('[data-bind="Cd_MG_P"]').text(materiale.Cd_MG_P);
-    $(ActivePage()).find('[data-bind="Cd_MGUbicazione_P"]').text(materiale.Cd_MGUbicazione_P);
-    $(ActivePage()).find('[data-bind="Cd_MG_A"]').text(materiale.Cd_MG_A);
-    $(ActivePage()).find('[data-bind="Cd_MGUbicazione_A"]').text(materiale.Cd_MGUbicazione_A);
+    var trasferimento = $(ActivePage()).find('[data-key="Trasferimento"]');
+    // Pulizia degli input della pagina
+    // Assegnazione valori
+    trasferimento.find('input, textarea').val('');
+    trasferimento.find('[data-bind="Cd_AR"]').text(materiale.Cd_AR);
+    trasferimento.find('input[name="Cd_AR"]').val(materiale.Cd_AR);
+    trasferimento.find('[data-bind="Descrizione"]').text(materiale.Descrizione);
+    trasferimento.find('[data-bind="Cd_ARLotto"]').text(materiale.Cd_ARLotto);
+    trasferimento.find('[data-bind="Cd_MG_P"]').text(materiale.Cd_MG_P);
+    trasferimento.find('[data-bind="Cd_MGUbicazione_P"]').text(materiale.Cd_MGUbicazione_P);
+    trasferimento.find('[data-bind="Cd_MG_A"]').text(materiale.Cd_MG_A);
+    trasferimento.find('[data-bind="Cd_MGUbicazione_A"]').text(materiale.Cd_MGUbicazione_A);
 
     // Setto la quantità
-    $(ActivePage()).find('[name="QtaRilevata"]').val((materiale.Consumo > materiale.QtaTrasferita ? materiale.Consumo - materiale.QtaTrasferita : 0));
+    if (materiale.ConsumoUsr != materiale.Consumo)
+        trasferimento.find('[name="QtaRilevata"]').val(Number((materiale.ConsumoUsr > materiale.QtaDaTrasferire ? materiale.ConsumoUsr - materiale.QtaDaTrasferire : 0).toFixed(2)));
+    else
+        trasferimento.find('[name="QtaRilevata"]').val(Number((materiale.Consumo > (materiale.QtaTrasferita + materiale.QtaDaTrasferire) ? materiale.Consumo - (materiale.QtaTrasferita + materiale.QtaDaTrasferire) : 0).toFixed(2)));
 
     //Reset mancante
     ActivePageDOM().querySelector("input[data-bind='Mancante']").checked = false;
 
     // Label della linea
-    var lblCd_xMOLinea = $(ActivePage()).find('label[data-bind="Cd_xMOLinea"]');
-    $(lblCd_xMOLinea).text(materiale.Cd_xMOLinea);
-
     // Ubind e bind del click
+    var lblCd_xMOLinea = trasferimento.find('label[data-bind="Cd_xMOLinea"]');
+    $(lblCd_xMOLinea).text(materiale.Cd_xMOLinea);
     $(lblCd_xMOLinea).unbind('click');
     $(lblCd_xMOLinea).click(function () {
-        $(ActivePage()).find('input[data-bind="Cd_xMOLinea"]').val(materiale.Cd_xMOLinea);
+        trasferimento.find('input[data-bind="Cd_xMOLinea"]').val(materiale.Cd_xMOLinea);
     });
 
     // Carico le unità di misura
@@ -6472,8 +5806,12 @@ function Search_MGUbicazione_Template(li, item, key) {
 function Search_DOSottoCommessa_Template(li, item, key) {
 
     li.attr("Cd_DOSottoCommessa", item.Cd_DOSottoCommessa);
+    var sCd_DOCommessa = "";
+    if (item.Cd_DOCommessa && (item.Cd_DOCommessa).trim().length > 0) {
+        sCd_DOCommessa = "&nbsp;<small>[" + (item.Cd_DOCommessa).trim() + "]</small>";
+    }
 
-    li.find("label").html(item.Cd_DOSottoCommessa + "&nbsp;-&nbsp;" + item.Descrizione);
+    li.find("label").html(item.Cd_DOSottoCommessa + "&nbsp;-&nbsp;" + item.Descrizione + sCd_DOCommessa);
 
     return li;
 }
@@ -6516,7 +5854,8 @@ function DOAperti_Template(li, item, key) {
     }
 
     var do_info = "";
-    do_info = " del " + fU.DateJsonToDate(item.DataDoc).substring(0, 10)
+    //do_info = " del " + fU.DateJsonToDate(item.DataDoc).substring(0, 10)
+    do_info = " del " + fU.DateToLocalDateString(item.DataDoc).substring(0, 10)
     if (item.P_DoN > 0) do_info += " (con prelievo)";
     li.find(".do-info").text($.trim(do_info));
 
@@ -6526,7 +5865,9 @@ function DOAperti_Template(li, item, key) {
 
     var do_exte = "";
     if (!fU.IsEmpty(item.NumeroDocRif)) do_exte = do_exte.concat(" Rif. Doc. " + item.NumeroDocRif);
-    if (!fU.IsEmpty(fU.DateJsonToDate(item.DataDocRif))) do_exte = do_exte.concat(" Del " + fU.DateJsonToDate(item.DataDocRif).substring(0, 10));
+    if (!fU.IsEmpty(item.DataDocRif)) do_exte = do_exte.concat(" Del " + fU.DateToLocalDateString(item.DataDocRif));
+    //if (!fU.IsEmpty(fU.DateToLocalDateString(item.DataDocRif))) do_exte = do_exte.concat(" Del " + fU.DateToLocalDateString(item.DataDocRif));
+    //if (!fU.IsEmpty(fU.DateJsonToDate(item.DataDocRif))) do_exte = do_exte.concat(" Del " + fU.DateJsonToDate(item.DataDocRif).substring(0, 10));
     if (!fU.IsEmpty(item.Cd_xMOCodSpe)) do_exte = do_exte.concat(" - Spedizione " + item.Cd_xMOCodSpe);
     if (!fU.IsEmpty(item.Targa)) do_exte = do_exte.concat(" - Targa " + item.Targa);
     if (!fU.IsEmpty(item.Cd_DOCaricatore)) do_exte = do_exte.concat(" - Caricatore " + item.Cd_DOCaricatore);
@@ -6566,7 +5907,8 @@ function DORistampa_Template(li, item, key) {
     li.find(".do-info").text(item.DO_Descrizione);
     li.find(".cf-info").text(fU.IfEmpty(item.Cd_CF) + " - " + fU.IfEmpty(item.CF_Descrizione));
     li.find(".cd-cfdest").text(item.Cd_CFDest + " - " + item.CFDest_Descrizione);
-    li.find(".datadoc").text(fU.DateJsonToDate(item.DataDoc));
+    li.find(".datadoc").text(fU.formatDateDDMMYYYY(item.DataDoc));
+    //li.find(".datadoc").text(fU.DateJsonToDate(item.DataDoc));
 
     li.on("click", function () {
         $("#pgDocRistampa label[name='Cd_DO']").text(item.Cd_DO);
@@ -6591,7 +5933,8 @@ function DOPrel_Template(tr, item, key) {
     tr.find(".Cd_DO").text(item.Cd_DO);
     tr.find(".N_DORig").text(item.N_DORig);
     tr.find(".NumeroDoc").text(item.NumeroDoc);
-    tr.find(".DataDoc").text(fU.DateJsonToDate(item.DataDoc));
+    tr.find(".DataDoc").text(fU.DateToLocalDateString(item.DataDoc));
+    //tr.find(".DataDoc").text(fU.DateJsonToDate(item.DataDoc));
     tr.find(".Cd_MGEsercizio").text(item.Cd_MGEsercizio);
     //tr.find(".Cd_DOSottoCommessa").text(item.Cd_DOSottoCommessa);
 
@@ -6626,8 +5969,19 @@ function DOPrel_All_Template(li, item, key) {
     li.find(".do-desc").text(item.DO_Descrizione);
     li.find(".cd-cf").text(item.Cd_CF + " - " + item.CF_Descrizione);
     li.find(".numerodoc").html("N.Documento: " + item.NumeroDoc + "&nbsp;&nbsp;&nbsp;");
-    li.find(".datadoc").text("DEL: " + fU.DateJsonToDate(item.DataDoc));
-    li.find(".dataconsegna").text("CONSEGNA IL: " + fU.DateJsonToDate(item.DataConsegna));
+    li.find(".datadoc").text("DEL: " + fU.DateToLocalDateString(item.DataDoc));
+
+
+    // do_sottocommessa_descrizione DOSottoCommessa_Descrizione
+    if (item.DOSottoCommessa_Descrizione) {
+        li.find(".do_sottocommessa_descrizione").text('SOTTOCOMMESSA: ' + item.Cd_DOSottoCommessa + ' - ' + item.DOSottoCommessa_Descrizione).show().prev().show();
+    } else {
+        li.find(".do_sottocommessa_descrizione").hide().prev().hide();
+    }
+
+    //li.find(".datadoc").text("DEL: " + fU.DateJsonToDate(item.DataDoc));
+    li.find(".dataconsegna").text("CONSEGNA IL: " + fU.DateToLocalDateString(item.DataConsegna));
+    //li.find(".dataconsegna").text("CONSEGNA IL: " + fU.DateJsonToDate(item.DataConsegna));
 
     li.find(".cd-do").on("click", function () {
         // Carica i dati del detail
@@ -6663,7 +6017,8 @@ function Spedizione_Template(tr, item, key) {
     tr.find(".Cd_CF").text(item.Cd_CF);
     tr.find(".NumeroDoc").text(item.NumeroDoc);
     //DEPRECATA tr.find(".DataDoc").text(fU.DateJsonToDate(item.DataDoc));
-    tr.find(".DataSpedizione").text(fU.DateJsonToDate(item.DataSpedizione));
+    tr.find(".DataSpedizione").text(fU.ToStandardDate(item.DataSpedizione));
+    //tr.find(".DataSpedizione").text(fU.DateJsonToDate(item.DataSpedizione));
     tr.find(".Cd_MGEsercizio").text(item.Cd_MGEsercizio);
     //Imposta l'attributo identificativo del doc e della lista di carico
     tr.find(".ck-sp").attr("Id_DOTes", item.Id_DOTes);
@@ -6705,7 +6060,8 @@ function xListaCarico_Template(tr, item, key) {
 
     tr.find(".Cd_CF").text(item.Cd_CF);
     tr.find(".NumeroDoc").text(item.NumeroDoc);
-    tr.find(".DataDoc").text(fU.DateJsonToDate(item.DataDoc));
+    tr.find(".DataDoc").text(fU.ToStandardDate(item.DataDoc));
+    //tr.find(".DataDoc").text(fU.DateJsonToDate(item.DataDoc));
     tr.find(".Cd_MGEsercizio").text(item.Cd_MGEsercizio);
     //Imposta l'attributo identificativo del doc e della lista di carico
     tr.find(".ck-ldc").attr("Id_DOTes", item.Id_DOTes);
@@ -6733,26 +6089,58 @@ function xListaCarico_Template(tr, item, key) {
 }
 
 function pgRLRig_AR_Template(tr, item, key) {
+    var W44716 = 44716; // per fare le prove sostituire con il proprio nuero di licenza
 
+    //Al click del bottone UM della lista delle letture/prelievi imposto il codice articolo e l'UM della riga corrente nei campi imput della pagina
     tr.find('.Cd_ARMisura').on("click", function () {
-        pgRLRig_InputData_Load($(this).parent());
+        // UM da assegnare: sarà il change di AR a prendere il default
+        $("#" + oPrg.ActivePageId + " select[name='Cd_ARMisura']").attr("um2set", tr.find(".Cd_ARMisura").text());
+        //Articolo
+        $("#pgRLRig input[name='Cd_AR']").val(tr.find(".Cd_AR").text()).change();
+
+
+        if (oApp.LicF_Id == W44716) {
+            if (oApp.dtDO[oPrg.drRL.Cd_DO].MagPFlag == true) {
+                $("#pgRLRig input[name='Cd_MGUbicazione_P']").val(tr.find(".Cd_MGUbicazione").text()).change();
+            } else if (oApp.dtDO[oPrg.drRL.Cd_DO].MagAFlag == true) {
+                $("#pgRLRig input[name='Cd_MGUbicazione_A']").val(tr.find(".Cd_MGUbicazione").text()).change();
+            }
+        }
+
     });
 
     tr.attr("key", key);
     tr.find(".Cd_AR").text(item.Cd_AR);
+    if (item.Quantita >= item.QtaEvadibile) {
+        tr.find(".Cd_ARMisura").attr("style", "background-color: lightgrey");
+    }
     tr.find(".Descrizione").text(item.Descrizione);
+    if (oApp.LicF_Id == W44716) {
+        tr.find(".Cd_MGUbicazione").text(item.ExtField);
+    }
+
     //tr.find(".Cd_ARLotto").text(fU.ToString(item.Cd_ARLotto));
     tr.find(".Cd_ARMisura").text(item.Cd_ARMisura);
+    //if 
     tr.find(".Quantita").text(item.Quantita);
+
     tr.find(".QtaEvadibile").text(item.QtaEvadibile);
+
     return tr;
 }
 
 function pgRLRig_ARDesc_Template(tr, item, key) {
-
     tr.attr("key", key);
     tr.attr("Cd_AR", item.Cd_AR);
+    if (item.Quantita >= item.QtaEvadibile) {
+        tr.find(".Cd_ARMisura").attr("style", "background-color: lightgrey");
+    }
     tr.find(".Descrizione").text(item.Descrizione);
+
+    var W44716 = 44716; // per fare le prove sostituire con il proprio nuero di licenza
+    if (oApp.LicF_Id == W44716) {
+        tr.find(".Cd_MGUbicazione").text(item.ExtField);
+    }
 
     return tr;
 }
@@ -6771,9 +6159,11 @@ function SMRig_TAARDesc_Template(tr, item, key) {
 }
 
 function pgTRRig_P_AR_Template(tr, item, key) {
-
     tr.find('.Cd_ARMisura').on("click", function () {
-        pgTRRig_P_InputData_Load($(this).parent());
+        // UM da assegnare: sarà il change di AR a prendere il default
+        $("#" + oPrg.ActivePageId + " select[name='Cd_ARMisura']").attr("um2set", tr.find(".Cd_ARMisura").text());
+        //Articolo
+        ActivePage().find("input[name='Cd_AR']").val(tr.find(".Cd_AR").text()).change();
     });
 
     tr.find(".Cd_AR").text(item.Cd_AR);
@@ -6786,10 +6176,11 @@ function pgTRRig_P_AR_Template(tr, item, key) {
 
 function pgTRRig_A_AR_Template(tr, item, key) {
 
-    tr.attr("Id_xMOTRRig_P", item.Id_xMOTRRig_P);
-
     tr.find('.Cd_ARMisura').on("click", function () {
-        pgTRRig_A_InputData_Load($(this).parent());
+        // UM da assegnare: sarà il change di AR a prendere il default
+        $("#" + oPrg.ActivePageId + " select[name='Cd_ARMisura']").attr("um2set", item.Cd_ARMisura);
+        //Articolo
+        ActivePage().find("input[name='Cd_AR']").attr("Id_xMOTRRig_P", item.Id_xMOTRRig_P).val(item.Cd_AR).change();
     });
 
     tr.find(".Cd_AR").text(item.Cd_AR);
@@ -6959,21 +6350,24 @@ function DetailCFDest_Template(item) {
 function DetailDOTes_Template(item) {
     var d = $("#DetailDO");
 
-    d.find(".doc-numero").html(item.Cd_DO + "&nbsp;" + item.NumeroDoc + " &nbsp;" + fU.DateJsonToDate(item.DataDoc) + " &nbsp;[" + item.Id_DOTes + "]");
+    d.find(".doc-numero").html(item.Cd_DO + "&nbsp;" + item.NumeroDoc + " &nbsp;" + fU.DateToLocalDateString(item.DataDoc) + " &nbsp;[" + item.Id_DOTes + "]");
+    //d.find(".doc-numero").html(item.Cd_DO + "&nbsp;" + item.NumeroDoc + " &nbsp;" + fU.DateJsonToDate(item.DataDoc) + " &nbsp;[" + item.Id_DOTes + "]");
     d.find(".cf-descrizione").html(item.Cd_CF + "&nbsp;" + item.CF_Descrizione);
 
     d.find(".indirizzo").html(fU.ToString(item.Indirizzo) + "&nbsp;" + fU.ToString(item.Localita) + "&nbsp;" + fU.ToString(item.Cap) + "&nbsp;" + fU.ToString(item.Cd_Provincia) + "&nbsp;" + fU.ToString(item.Cd_Nazione));
     d.find(".cd-mgesercizio").text(item.Cd_MGEsercizio);
 
     fU.ShowIf(d.find(".div-dataconsegna"), !fU.IsEmpty(item.DataConsegna));
-    d.find(".dataconsegna").text(fU.DateJsonToDate(item.DataConsegna));
+    d.find(".dataconsegna").text(fU.ToStandardDate(item.DataConsegna));
+    //d.find(".dataconsegna").text(fU.DateJsonToDate(item.DataConsegna));
 
     fU.ShowIf(d.find(".div-sottocommessa"), !fU.IsEmpty(item.Cd_DOSottoCommessa));
-    d.find(".cd-dosottocommessa").text(item.Cd_DOSottoCommessa);
+    d.find(".cd-dosottocommessa").text(item.Cd_DOSottoCommessa + ' - ' + item.DOSottoCommessa_Descrizione);
 
     fU.ShowIf(d.find(".div-riferimento"), !fU.IsEmpty(item.NumeroDocRif));
     d.find(".numerodocrif").text(item.NumeroDocRif);
-    d.find(".datadocrif").text(fU.DateJsonToDate(item.DataDocRif));
+    d.find(".datadocrif").text(fU.ToStandardDate(item.DataDocRif));
+    //d.find(".datadocrif").text(fU.DateJsonToDate(item.DataDocRif));
 
     fU.ShowIf(d.find(".div-prelevatoda"), !fU.IsEmpty(item.PrelevatoDa));
     d.find(".prelevatoda").text(item.PrelevatoDa);
@@ -7035,7 +6429,10 @@ function DetailRLRig_Template(li, item, key) {
     li.find(".id-rig").text(item.Id_xMORLRig);
     li.find(".cd-operatore").text(item.Cd_Operatore);
     li.find(".ar-cddesc").text(item.Cd_AR + " - " + item.Descrizione);
-    li.find(".dataora").text(fU.DateJsonToTime(item.DataOra));
+
+    li.find(".dataora").text(fU.formatDateDDMMYYYY(item.DataOra));
+    //li.find(".dataora").text(fU.DateJsonToTime(item.DataOra));
+
     li.find(".mgp-ubip").text(item.Cd_MG_P);
     li.find(".cd-mgubicazione-p").text(fU.ToString(item.Cd_MGUbicazione_P));
     li.find(".mga-ubia").text(item.Cd_MG_A);
@@ -7113,16 +6510,13 @@ function DetailTRRig_A_Template(li, item, key) {
 
 function xMOTRRig_Totali_Template(row) {
 
-    var p = $("#" + oPrg.ActivePageId);
-
-    p.find(".ar-totali").text(row.Ar_Totali);
-    p.find(".ar-incompleti").text(row.Ar_Incompleti);
+    ActivePage().find(".ar-totali").text(row.Ar_Totali);
+    ActivePage().find(".ar-incompleti").text(row.Ar_Incompleti);
 }
 
 // Carica nel select di pgPrelievi i tipi di documenti che posso creare 
 // in base ai doc selezionati per il prelievo
 function Select_Cd_DO_Template(ck) {
-    var p = "#" + oPrg.ActivePageId;
 
     //Caricamento documenti generabili
     var docs = $(ck).attr("Cd_DOs").split(",");
@@ -7130,13 +6524,13 @@ function Select_Cd_DO_Template(ck) {
 
     if (docs.length > 0) {
         for (var i = 0; i < docs.length; i++) {
-            $(p).find("select[name='Cd_DO'] option").each(function () {
+            ActivePage().find("select[name='Cd_DO'] option").each(function () {
                 if ($(this).val() == docs[i])
                     find = true;
             });
 
             if (!find) {
-                $(p).find("select[name='Cd_DO']").append($('<option>', {
+                ActivePage().find("select[name='Cd_DO']").append($('<option>', {
                     value: docs[i],
                     text: docs[i],
                     class: "op-cddo"
@@ -7169,7 +6563,7 @@ function DetailPackingList_ULAR_Template(tr, item, key, GRP) {
 
     if (GRP == 1) {
         tr.find("i").css("color", "#DBDBDB").on("click", function () {
-            PopupMsg_Show("ATTENZIONE", '', 'La funzionalità di spostamento o elimina quantità è attiva solo con la modalità di visualizzazione singola!', '');
+            PopupMsg_Show("ATTENZIONE", '', 'La funzionalità di spostamento o elimina quantità è attiva solo con la modifica attiva!', '');
         });
     } else {
         tr.find("i").on("click", function () {
@@ -7244,6 +6638,17 @@ function pgRLPK_Template() {
     p.find("input[name='LunghezzaMks']").val(pklref.LunghezzaMks);
     p.find("input[name='LarghezzaMks']").val(pklref.LarghezzaMks);
 
+
+    // first-focus
+    $("input[name='PesoNettoMks']").removeClass("first-focus");
+    $("input[name='PesoLordoMks']").removeClass("first-focus");
+    var input2Focus = oLocalStorage.get("pgRLPK_lastPesoInput");
+    if (input2Focus) {
+        $("input[name='" + input2Focus + "']").addClass("first-focus");
+    } else {
+        $("input[name='PesoNettoMks']").addClass("first-focus");
+    }
+
 }
 
 function xMOGiacenza_Template(tr, item, key) {
@@ -7277,7 +6682,8 @@ function DetailSMDocs_Template(li, item, key) {
     //li.find(".do-desc").text(item.DO_Descrizione);
     li.find(".cd-cf").text(item.Cd_CF + " - " + item.CF_Descrizione);
     li.find(".numerodoc").html("N.Documento: " + item.NumeroDoc + "&nbsp;&nbsp;&nbsp;");
-    li.find(".datadoc").text("DEL: " + fU.DateJsonToDate(item.DataDoc));
+    li.find(".datadoc").text("DEL: " + fU.DateToLocalDateString(item.DataDoc));
+    //li.find(".datadoc").text("DEL: " + fU.DateJsonToDate(item.DataDoc));
     li.find(".ndorig").text("N.Righe: " + item.N_DORig);
 
     //li.find(".cd-do").on("click", function () {
@@ -7381,10 +6787,13 @@ function pgRLRig_Clear() {
     $(p).find("input[name='Cd_ARLotto']").val("");
     $(p).find("input[name='DataScadenza']").val("");
     $(p).find("input[name='Matricola']").val("");
-    $(p).find("input[name='Cd_DOSottoCommessa']").val("");
+    $(p).find("input[name='UMFatt']").val("");
+    $(p).find("input[name='Cd_DOSottoCommessa']").val(fU.IsEmpty(oPrg.drRL.Cd_DOSottoCommessa) ? "" : oPrg.drRL.Cd_DOSottoCommessa);
+    //$(p).find("input[name='Cd_DOSottoCommessa']").val("");
     $(p).find(".op-um").remove();
     $(p).find(".ar-aa").text("");
     $(p).find("select[name='Cd_ARMisura'] .op-um").remove();
+    oPrg.Id_DORig = 0;
     // Svuota i campi personalizzati
     $(p).find(".div-extfld-pers input").val("");
 
@@ -7418,26 +6827,24 @@ function pgTRRig_PA_Clear(p) {
 
 // Filtra da un elenco le liste di carico 
 function xListaCarico_Filter(ldc) {
-    var p = "#" + oPrg.ActivePageId;
     if (!fU.IsEmpty(ldc)) {
         //Mostra/Nasconde tutte le righe che non fanno parte della Ldc
-        $(p).find("tr.tr-ldc").filter("[xListaCarico!='" + ldc + "']").hide();
-        $(p).find("tr.tr-ldc").filter("[xListaCarico='" + ldc + "']").show();
+        ActivePage().find("tr.tr-ldc").filter("[xListaCarico!='" + ldc + "']").hide();
+        ActivePage().find("tr.tr-ldc").filter("[xListaCarico='" + ldc + "']").show();
         //Verifica della presenza di righe visibili
-        if ($(p).find("tr.tr-ldc:visible").length == 0) PopupMsg_Show("LdC", "L1", "Lista di carico " + ldc + " non presente nella lista!");
+        if (ActivePage().find("tr.tr-ldc:visible").length == 0) PopupMsg_Show("LdC", "L1", "Lista di carico " + ldc + " non presente nella lista!");
         //Mostra sempre le righe selezionate (recupero l'id di testa e mostro la riga)
-        $(p).find("tr.tr-ldc").filter("[Id_DOTes='" + $(p).find(".ck-ldc:checked").attr("Id_DOTes") + "']").show();
+        ActivePage().find("tr.tr-ldc").filter("[Id_DOTes='" + ActivePage().find(".ck-ldc:checked").attr("Id_DOTes") + "']").show();
     } else {
         //Mostra tutto
-        $(p).find("tr.tr-ldc").show();
+        ActivePage().find("tr.tr-ldc").show();
     }
 }
 
 // Seleziona la lista di carico da un valore simulando il click sul check  
 function xListaCarico_SelById_DOTes(Id_DOTes) {
-    var p = "#" + oPrg.ActivePageId;
     //Imposta il campo selezionato e lo mostra se nascosto
-    var chk = $(p).find(".ck-ldc[Id_DOTes='" + Id_DOTes + "']");
+    var chk = ActivePage().find(".ck-ldc[Id_DOTes='" + Id_DOTes + "']");
     chk.prop("checked", true);
     //Filtra la lista di carico corrispondente
     xListaCarico_Filter(chk.attr("xListaCarico"));
@@ -7447,19 +6854,17 @@ function xListaCarico_SelById_DOTes(Id_DOTes) {
 
 // Seleziona la lista di carico 
 function xListaCarico_Check_LdC(chk) {
-    var p = "#" + oPrg.ActivePageId;
-
     //Elimina i documenti selezionabili
-    $(p).find("select option").remove();
+    ActivePage().find("select option").remove();
 
     var Id_DOTes = fU.ToString($(chk).attr("Id_DOTes"));
 
     //Deseleziono tutti i check 
-    $(p).find(".ck-ldc[Id_DOTes!='" + Id_DOTes + "']").prop("checked", false);
+    ActivePage().find(".ck-ldc[Id_DOTes!='" + Id_DOTes + "']").prop("checked", false);
     //Seleziono il documento corrente
-    $(p).find(".ck-ldc[Id_DOTes='" + Id_DOTes + "']").prop("checked", $(chk).prop("checked"));
+    ActivePage().find(".ck-ldc[Id_DOTes='" + Id_DOTes + "']").prop("checked", $(chk).prop("checked"));
 
-    var nsel = fU.ToInt32($(p).find("input:visible:checked").length);
+    var nsel = fU.ToInt32(ActivePage().find("input:visible:checked").length);
 
     if (!fU.IsEmpty(Id_DOTes) && nsel > 0 && !fU.IsEmpty($(chk).attr("Cd_DOs"))) {
 
@@ -7467,14 +6872,14 @@ function xListaCarico_Check_LdC(chk) {
         var docs = $(chk).attr("Cd_DOs").split(",");
         if (docs.length > 0) {
             for (var i = 0; i < docs.length; i++) {
-                $(p).find("select").append($('<option>', {
+                ActivePage().find("select").append($('<option>', {
                     value: docs[i],
                     text: docs[i]
                 }));
             }
         }
         //Riassegna il numero di doc selezionato nel campo! 
-        $(p).find("input[name='Id_DOTes']").val(Id_DOTes);
+        ActivePage().find("input[name='Id_DOTes']").val(Id_DOTes);
     } else {
         //nonostante la presenza di righe non si può selezionare nulla (forse errori in cfg doc in Arca?)
         nsel = 0;
@@ -7535,73 +6940,6 @@ function KeyPress_Execute(keycode, input) {
                 break;
         }
         if (err) PopupMsg_Show("ERRORE", "1", "Errore di gestione del KeyPress_Execute() del campo " + input.attr("name"));
-    }
-}
-
-//  Gestione keypress su Barcode                                         
-//  e = keycode
-//  imp = imput barcode
-//  sel = select del tipo di barcode
-function Barcode_Enter(inp, sel) {
-
-    //Memorizza il barcode letto
-    var barcode = $(inp).val().trim();
-    //Reset del valore del campo BC
-    $(inp).val("");             //$("#pgRLRig .div-barcode").find("input").val("").focus();
-
-    if (!fU.IsEmpty(barcode)) {
-
-        // || oApp.LicF_Id == 3967
-        if (oApp.LicF_Id == 25638) {
-            barcode = barcode.replace(/[ )= ]/g, "").replace(/[ ' ]/g, "-");
-        }
-
-        // Se il bc interpretato corrisponde alla stringa |CONF| abilito o disabilito il check di autoconferma
-        if (barcode.toUpperCase() == "CONF") {
-            $(".ck-autoconfirm").prop("checked") == true ? $(".ck-autoconfirm").prop("checked", false) : $(".ck-autoconfirm").prop("checked", true);
-            SetFocus("xMOBarcode");
-        }
-        else {
-            var bc_ok = false;
-            switch (oPrg.ActivePageValue) {
-                case enumPagine.pgRLRig:
-                    var id_lettura = -1;
-                    //Se il barcode è di tipo Detail lo aggiunge alla lista e ne gestisce l'UI
-                    if (oPrg.BC.CurrentBC.Detail) {
-                        id_lettura = Barcode_Detail_AddBc(barcode);
-                    }
-                    //Interpreta il barcode letto
-                    bc_ok = Barcode_Interpreter(barcode, id_lettura);
-                    //Gestione del focus after lettura bc ..........................................
-                    if (bc_ok) {
-                        var pos = $(sel).find("option:selected").attr("pos"); //posizione attuale del bc
-                        var num = $(sel).find("option:selected").attr("num"); //numero corrente bc
-                        //Verifica se esistono altri Bc con la stessa posizione (cicla tra i bc configurati)
-                        if (Barcode_SelByPos(pos, (fU.ToInt32(num) + 1))) {
-                            //Focus sul bc
-                            SetFocus("xMOBarcode");
-                        }
-                        // Terminati i barcode da ciclare se ho il check confirm automatico attivo effettuo il click del conferma
-                        else {
-                            if (fU.IsChecked(("#" + oPrg.ActivePageId + " .ck-autoconfirm"))) {
-                                setTimeout(function () {
-                                    $("#" + oPrg.ActivePageId + " .btn-confirm").click();
-                                }, 250);
-                            }
-                        }
-                    }
-                    break;
-                case enumPagine.pgAA:
-                    //Interpreta il barcode letto
-                    bc_ok = Barcode_Interpreter_Alias(barcode);
-                    // Imposto il focus sul bottone inserisci
-                    $("#pgAA").find("button").focus().select();
-                    break;
-                default:
-                    //evento invio non gestito!
-                    break;
-            }
-        }
     }
 }
 
@@ -7862,57 +7200,21 @@ function DivToggle_Execute(div, force_open) {
     if (force_open == true) {
         $(div).find(".icon").text("keyboard_arrow_up");
         $(div).find(".content").show();
+
+        if ($(div).hasClass("div-letture")) $("#pgRLRig").find(".div-letture").find(".mo-ofy-auto").show();
+        if ($(div).hasClass("div-mga")) $("#pgRLRig").find(".div-mga").find(".mo-ofy-auto").show();
+
     } else {
         $(div).find(".icon").text('keyboard_arrow_down');
         $(div).find(".content").hide();
-    }
-}
 
-// Riempe i campi di pgRLRig al click dell'Um nell tabella   Set_Input_TopgRLRig
-function pgRLRig_InputData_Load(tr) {
-
-    //Svuoto il semaforo e riassegno l'articolo
-    $("#pgRLRig .ar-aa").text("");
-    $("#pgRLRig input[name='Cd_AR']").val(tr.find(".Cd_AR").text());
-
-    // Controllo la quantità da proporre 
-    switch (oPrg.drDO.xMOQuantitaDef) {
-        case 1:
-            $("#pgRLRig input[name='Quantita']").val("1");
-            break;
-        case 2:
-            // Se xMOQuantitaDef è impotata al totale prelevabile carico la quantià EVAD nel campo
-            var QtaDaEvadere = tr.find(".QtaEvadibile").text() - tr.find(".Quantita").text();
-            $("#pgRLRig input[name='Quantita']").val(QtaDaEvadere > 0 ? QtaDaEvadere : "");
-            break;
-        default:
-            break;
+        if ($(div).hasClass("div-letture")) $("#pgRLRig").find(".div-letture").find(".mo-ofy-auto").hide();
+        if ($(div).hasClass("div-mga")) $("#pgRLRig").find(".div-mga").find(".mo-ofy-auto").hide();
     }
 
-    ARARMisura_Set(tr.find(".Cd_ARMisura").text());
 
-    setTimeout(function () {
-        $("#pgRLRig input[name='Quantita']").attr("rigakey", tr.attr("key")).focus().select();
-    }, 150);
 }
 
-// Riempe i campi di pgTRRig_P al click dell'Um nella tabella
-function pgTRRig_P_InputData_Load(tr) {
-    $("#pgTRRig_P input[name='Cd_AR']").val(tr.find(".Cd_AR").text());
-
-    ARARMisura_Set(tr.find(".Cd_ARMisura").text());
-
-    $("#pgTRRig_P input[name='Quantita']").focus().select();
-}
-
-// Riempe i campi di pgTRRig_P al click dell'Um nella tabella
-function pgTRRig_A_InputData_Load(tr) {
-    $("#pgTRRig_A input[name='Cd_AR']").val(tr.find(".Cd_AR").text()).attr("Id_xMOTRRig_P", tr.attr("Id_xMOTRRig_P"));
-
-    ARARMisura_Set(tr.find(".Cd_ARMisura").text());
-
-    $("#pgTRRig_A input[name='Quantita']").focus().select();
-}
 
 // Esegue il click sul li dei documenti aperti
 // ATENZIONE il click sulle icone del li simulano il click del li!
@@ -8003,18 +7305,9 @@ function INAperti_DeleteIt(id_xmoin) {
     $("#Popup_INAperti_Del").hide();
 }
 
-function ARARMisura_Set(um) {
-    // Voglio assegnare una um: pulisce il select perché solo se chiamo ARARMisura_Build con il Focus su Quantità lo potro assegnare
-    $("#" + oPrg.ActivePageId + " select[name='Cd_ARMisura'] .op-um").remove();
-    // Memorizzo l'um da selezionare
-    $("#" + oPrg.ActivePageId + " select[name='Cd_ARMisura']").attr("um2set", um.toUpperCase());
-}
-
 function ARARMisura_Build() {
-
     // Controllo che sia stato selezionato un articolo e che la lista um è vuota
     if (!fU.IsEmpty($("#" + oPrg.ActivePageId + " input[name='Cd_AR']").val()) && $("#" + oPrg.ActivePageId + " select[name='Cd_ARMisura'] option").length == 0) {
-
         var TipoARMisura = "";
         var xMOUmDef = "";
 
@@ -8028,9 +7321,9 @@ function ARARMisura_Build() {
         // Se um2set non è vuoto seleziona l'um predeterminata
         var um;
         um = $("#" + oPrg.ActivePageId + " select[name='Cd_ARMisura']").attr("um2set");
-        if (!fU.IsEmpty(um)) {
-            $("#" + oPrg.ActivePageId + " select[name='Cd_ARMisura']").val(um);
-        }
+        if (!fU.IsEmpty(um))
+            $("#" + oPrg.ActivePageId + " select[name='Cd_ARMisura']").setVal(um);
+
         $("#" + oPrg.ActivePageId + " select[name='Cd_ARMisura']").attr("um2set", "");
 
         // Se l'operatore ha letto un alias o alternativo seleziona l'UM di riferimento
@@ -8046,6 +7339,7 @@ function Delete_Last_Read() {
     switch (oPrg.ActivePageValue) {
         case enumPagine.pgRLRig:
             Ajax_xmosp_xMORLLast_Del();
+            onRowCountChange();
             break;
 
         case enumPagine.pgTRRig_P:
@@ -8143,9 +7437,14 @@ function Confirm_Read(EseguiControlli) {
                 PopupMsg_Show("Errore", "", "Nessun magazzino di arrivo selezionato.");
                 return false;
             }
+            if (fU.IsEmpty($("#" + oPrg.ActivePageId + " input[name='Quantita']").val())) {
+                PopupMsg_Show("Errore", "", "Quantità errata o mancante.");
+                return false;
+            }
             r = Ajax_xmosp_xMOTRRig_A_Save();
             break;
     }
+
 
     if (r) {
         // Azzero i campi e imposto il focus sul campo
@@ -8157,6 +7456,9 @@ function Confirm_Read(EseguiControlli) {
             case enumPagine.pgTRRig_P:
             case enumPagine.pgTRRig_A:
                 pgTRRig_PA_Clear(oPrg.ActivePageId);
+                SetFocus();
+                break;
+            default:
                 SetFocus();
                 break;
         }
@@ -8171,7 +7473,7 @@ function Confirm_Read(EseguiControlli) {
 }
 
 // Al focus nel campo quantità recupera il cd_Ar da alias o cod alt. e carica le um (se non sono già state caricate) 
-function Quantita_Onfocus(inp_qta) {
+function AR_Set_Qta_UM() {
     var Cd_CF = "";
     var Cd_AR = "";
     var find_aa = true;
@@ -8203,22 +7505,33 @@ function Quantita_Onfocus(inp_qta) {
         //Ricarica l'elenco delle unità di misura dell'articolo corrente
         ARARMisura_Build();
 
-        //Se la quantità è vuota imposta i valori
-        if (!fU.IsEmpty(inp_qta) && inp_qta.val() == "") {
-            //Imposta i default dalla parametrizzazione del DOC
-            switch (oPrg.drDO.xMOQuantitaDef) {
-                case 0: //nessuno 
-                    break;
-                case 1: //Una unita
-                    inp_qta.val("1");
-                    break;
-                case 2: //Totale prelevabile;
-                    // ### da sviluppare
-                    break;
-            }
-            //Seleziona il contenuto di tutto il campo
-            inp_qta.select();
+        var inp_qta = ActivePage().find("input[name='Quantita']");
+        switch (oPrg.ActivePageId) {
+            case 'pgRLRig':
+                //Se la quantità è vuota imposta i valori
+                if (fU.IsEmpty(inp_qta.val())) {
+                    //Imposta i default dalla parametrizzazione del DOC
+                    switch (oPrg.drDO.xMOQuantitaDef) {
+                        case 0: //nessuno 
+                            break;
+                        case 1: //Una unita
+                            inp_qta.val("1");
+                            break;
+                        case 2: //Totale prelevabile;
+                            var q = 0;
+                            //Cerca il totale prelevabile
+                            var ar = oPrg.RL.getARItemByAR(Cd_AR);
+                            if (ar && ar.QtaResidua)
+                                q = ar.QtaResidua;
+                            inp_qta.val(q);
+                            break;
+                    }
+                }
+                break;
+
         }
+        //Seleziona il contenuto di tutto il campo
+        inp_qta.select();
     }
 }
 
@@ -8261,13 +7574,16 @@ function DetailPackinList_OnOffPesi(check) {
 
 // Attiva e disattiva la visualizzazione per singolo ar nel detail packing list
 function DetailPackinList_Visualizzazione(check) {
-
     if (check.attr("checked") == "checked") {
         check.removeAttr("checked");
         Detail_Ajax_xmofn_xMORLRigPackingList_AR_GRP();
+        //$(".pk-dati").find("td i").hide()
+        $(".pk-dati table.dati-ar tbody tr ").find("th:nth-child(1), td:nth-child(1)").hide()
     } else {
         check.attr("checked", "checked");
         Detail_Ajax_xmofn_xMORLRigPackingList_AR();
+        //$(".pk-dati").find("td i").show()
+        $(".pk-dati table.dati-ar tbody tr ").find("th:nth-child(1), td:nth-child(1)").show()
     }
 }
 
@@ -8327,6 +7643,7 @@ function Slideshow_PKRef(n) {
     Ajax_xmosp_xMORLPackListRef_Save();
     oPrg.PK.idx = index;
     pgRLPK_Template();
+    SetFocus();
 }
 
 function PackListRef_Save() {
@@ -8408,24 +7725,22 @@ function Articolo_Giac_Filter() {
 
 // Filtra da un elenco le spedizioni
 function Spedizione_Filter(sp) {
-    var p = "#" + oPrg.ActivePageId;
     if (!fU.IsEmpty(sp)) {
         //Mostra/Nasconde tutte le righe che non fanno parte della Spedizione
-        $(p).find("tr.tr-sp").filter("[Cd_xMOCodSpe!='" + sp + "']").hide();
-        $(p).find("tr.tr-sp").filter("[Cd_xMOCodSpe='" + sp + "']").show();
+        ActivePage().find("tr.tr-sp").filter("[Cd_xMOCodSpe!='" + sp + "']").hide();
+        ActivePage().find("tr.tr-sp").filter("[Cd_xMOCodSpe='" + sp + "']").show();
         //Verifica della presenza di righe visibili
-        if ($(p).find("tr.tr-sp:visible").length == 0) PopupMsg_Show("SP", "S1", "Spedizione " + sp + " non presente nella lista!");
+        if (ActivePage().find("tr.tr-sp:visible").length == 0) PopupMsg_Show("SP", "S1", "Spedizione " + sp + " non presente nella lista!");
     } else {
         //Mostra tutto
-        $(p).find("tr.tr-sp").show();
+        ActivePage().find("tr.tr-sp").show();
     }
 }
 
 // Seleziona la spedizione da un valore simulando il click sul check  
 function Spedizione_SelById_DOTes(Id_DOTes) {
-    var p = "#" + oPrg.ActivePageId;
     //Imposta il campo selezionato e lo mostra se nascosto
-    var chk = $(p).find(".ck-sp[Id_DOTes='" + Id_DOTes + "']");
+    var chk = ActivePage().find(".ck-sp[Id_DOTes='" + Id_DOTes + "']");
     chk.prop("checked", true);
     //Filtra la lista di carico corrispondente
     Spedizione_Filter(chk.attr("Cd_xMOCodSpe"));
@@ -8435,20 +7750,19 @@ function Spedizione_SelById_DOTes(Id_DOTes) {
 
 // Seleziona la spedizione
 function Spedizione_Check_SP(chk) {
-    var p = "#" + oPrg.ActivePageId;
 
     //Elimina i documenti selezionabili
-    $(p).find("select option").remove();
-    $(p + " .i").hide();
+    ActivePage().find("select option").remove();
+    ActivePage().find(".i").hide();
 
     var Cd_xMOCodSpe = fU.ToString($(chk).attr("Cd_xMOCodSpe"));
 
     //Deseleziono tutti i check 
-    $(p).find(".ck-sp[Cd_xMOCodSpe!='" + Cd_xMOCodSpe + "']").prop("checked", false);
+    ActivePage().find(".ck-sp[Cd_xMOCodSpe!='" + Cd_xMOCodSpe + "']").prop("checked", false);
     //Seleziono il documento corrente
     //$(p).find(".ck-sp[Cd_xMOCodSpe='" + Cd_xMOCodSpe + "']").prop("checked", $(chk).prop("checked"));
 
-    var nsel = fU.ToInt32($(p).find("input:visible:checked").length);
+    var nsel = fU.ToInt32(ActivePage().find("input:visible:checked").length);
 
     if (!fU.IsEmpty(Cd_xMOCodSpe) && nsel > 0 && !fU.IsEmpty($(chk).attr("Cd_DOs"))) {
 
@@ -8456,19 +7770,19 @@ function Spedizione_Check_SP(chk) {
         var docs = $(chk).attr("Cd_DOs").split(",");
         if (docs.length > 0) {
             for (var i = 0; i < docs.length; i++) {
-                $(p).find("select").append($('<option>', {
+                ActivePage().find("select").append($('<option>', {
                     value: docs[i],
                     text: docs[i]
                 }));
             }
         }
         //Riassegna il numero di doc selezionato nel campo! 
-        $(p).find("input[name='Cd_xMOCodSpe']").val(Cd_xMOCodSpe);
-        $(p + " .sp-ok").show();
+        ActivePage().find("input[name='Cd_xMOCodSpe']").val(Cd_xMOCodSpe);
+        ActivePage().find(".sp-ok").show();
     } else {
         //nonostante la presenza di righe non si può selezionare nulla (forse errori in cfg doc in Arca?)
         nsel = 0;
-        $(p + " .sp-no").show();
+        ActivePage().find(".sp-no").show();
     }
 
     //Restituisce il numero di elementi selezionati
@@ -8492,44 +7806,6 @@ function pgSP_OrderTable(order) {
 // -------------------------------------------------
 // #2.30 REGION: ACQUISIZIONE ALIAS
 // -------------------------------------------------
-
-// Elenco di tutti i BC codificati in Moovi (per acquisizione alias)
-function Ajax_xmofn_xMOBarcode() {
-    var bc = $("#" + oPrg.ActivePageId).find(".barcode");
-    if (!fU.IsEmpty(bc)) {
-        //Reset BC 
-        $(bc).find("option").remove();
-        Params = JSON.stringify({
-            Codice: ''
-        });
-        $.ajax({
-            url: "Moovi.aspx/xmofn_xMOBarcode",
-            async: false,
-            data: Params,
-            type: "POST",
-            dataType: "json",
-            contentType: "application/json; charset=utf-8",
-            success: function (mydata) {
-                var dtBc = $.parseJSON(mydata.d);
-                // Carico i BC nella struttura globale
-                oPrg.BC = new Barcode(dtBc);
-                // Carica i barcode  nel select
-                Barcode_Load(bc);
-                //Se il combo possiede bc automatizza la gestione
-                if ($(bc).find("option").length > 0) {
-                    // Codice 
-                    Barcode_SelType();
-                } else {
-                    //Nessun bc definito: rimuove la gestione del bc
-                    $("#" + oPrg.ActivePageId).find(".barcode").hide();
-                }
-            },
-            error: function (XMLHttpRequest, textStatus, errorThrown) {
-                Ajax_ErrOut(XMLHttpRequest, textStatus, errorThrown);
-            }
-        });
-    }
-}
 
 function Popup_ARAlias_Insert_Show(Alias) {
 
@@ -8570,33 +7846,24 @@ function GoTo_Prg_AA(TipoAA) {
 function Ajax_xmosp_ARAlias_Save() {
     var out = false;
 
-
-    var p = $("#" + oPrg.ActivePageId);
-
-    Params = JSON.stringify({
-        Terminale: oApp.Terminale,
-        Cd_Operatore: oApp.Cd_Operatore,
-        Cd_AR: $(p).find("input[name='Cd_AR']").val(),
-        Cd_ARMisura: $(p).find("input[name='Cd_ARMisura']").val(),
-        Alias: $(p).find("input[name='ALI']").val(),
-    });
-
-    $.ajax({
-        url: "Moovi.aspx/xmosp_ARAlias_Save",
-        async: false,
-        data: Params,
-        type: "POST",
-        dataType: "json",
-        contentType: "application/json; charset=utf-8",
-        success: function (mydata) {
+    ajaxCallSync(
+        "/xmosp_ARAlias_Save",
+        {
+            Terminale: oApp.Terminale,
+            Cd_Operatore: oApp.Cd_Operatore,
+            Cd_AR: ActivePage().find("input[name='Cd_AR']").val(),
+            Cd_ARMisura: ActivePage().find("input[name='Cd_ARMisura']").val(),
+            Alias: ActivePage().find("input[name='ALI']").val(),
+        },
+        function (mydata) {
             var r = $.parseJSON(mydata.d);
             if (r[0].Result == 1) {
                 // Svuota i campi della pagina
-                $(p).find("input").val("");
-                $(p).find(".descrizione").text("");
-                $(p).find(".msg").text("Alias Inserito");
+                ActivePage().find("input").val("");
+                ActivePage().find(".descrizione").text("");
+                ActivePage().find(".msg").text("Alias Inserito");
                 setTimeout(function () {
-                    $(p).find(".msg").text("");
+                    ActivePage().find(".msg").text("");
                 }, 1500);
                 SetFocus();
                 out = true;
@@ -8604,11 +7871,8 @@ function Ajax_xmosp_ARAlias_Save() {
             else {
                 PopupMsg_Show("ERRORE", r[0].Result, r[0].Messaggio);
             }
-        },
-        error: function (XMLHttpRequest, textStatus, errorThrown) {
-            Ajax_ErrOut(XMLHttpRequest, textStatus, errorThrown);
         }
-    });
+    );
 
     return out;
 }
@@ -8617,33 +7881,25 @@ function Ajax_xmosp_ARAlias_Save() {
 function Ajax_xmosp_ARCodCF_Save() {
     var out = false;
 
-    var p = $("#" + oPrg.ActivePageId);
-
-    Params = JSON.stringify({
-        Terminale: oApp.Terminale,
-        Cd_Operatore: oApp.Cd_Operatore,
-        Cd_AR: $(p).find("input[name='Cd_AR']").val(),
-        Cd_CF: $(p).find("input[name='Cd_CF']").val(),
-        ARCodCF: $(p).find("input[name='ALT']").val(),
-        Descrizione: $(p).find("input[name='Descrizione']").val(),
-    });
-
-    $.ajax({
-        url: "Moovi.aspx/xmosp_ARCodCF_Save",
-        async: false,
-        data: Params,
-        type: "POST",
-        dataType: "json",
-        contentType: "application/json; charset=utf-8",
-        success: function (mydata) {
+    ajaxCallSync(
+        "/xmosp_ARCodCF_Save",
+        {
+            Terminale: oApp.Terminale,
+            Cd_Operatore: oApp.Cd_Operatore,
+            Cd_AR: ActivePage().find("input[name='Cd_AR']").val(),
+            Cd_CF: ActivePage().find("input[name='Cd_CF']").val(),
+            ARCodCF: ActivePage().find("input[name='ALT']").val(),
+            Descrizione: ActivePage().find("input[name='Descrizione']").val(),
+        },
+        function (mydata) {
             var r = $.parseJSON(mydata.d);
             if (r[0].Result == 1) {
                 // Svuota i campi della pagina
-                $(p).find("input").val("");
-                $(p).find(".descrizione").text("");
-                $(p).find(".msg").text("Codice Alternativo Inserito");
+                ActivePage().find("input").val("");
+                ActivePage().find(".descrizione").text("");
+                ActivePage().find(".msg").text("Codice Alternativo Inserito");
                 setTimeout(function () {
-                    $(p).find(".msg").text("");
+                    ActivePage().find(".msg").text("");
                 }, 1500);
                 SetFocus();
                 out = true;
@@ -8651,11 +7907,8 @@ function Ajax_xmosp_ARCodCF_Save() {
             else {
                 PopupMsg_Show("ERRORE", r[0].Result, r[0].Messaggio);
             }
-        },
-        error: function (XMLHttpRequest, textStatus, errorThrown) {
-            Ajax_ErrOut(XMLHttpRequest, textStatus, errorThrown);
         }
-    });
+    );
 
     return out;
 }
@@ -8677,18 +7930,245 @@ function pgAA_Change_TipoAA(codalt) {
 // -------------------------------------------------
 // #2.40 REGION: INTERROGAZIONE MAGAZZINO
 // -------------------------------------------------
+var mooviLottoCommessa = null
+
+function Init_SettingsTAG() {
+
+    $(".pgMGDisp-header").on("click", function (event) {
+        $("input[name='Cd_AR']").focus().select();
+    });
+
+    //Switch per solo quantità positive
+    function mooviChkQtaPosSetState() {
+        if ($(".switch-container .switch input").is(":checked")) {
+            $(".switch-container .switch ").addClass("chacked")
+        } else {
+            $(".switch-container .switch").removeClass("chacked")
+        }
+    }
+
+    $(".switch-container .switch input").on("click", function () {
+        mooviChkQtaPosSetState()
+        oLocalStorage.set("SoloQtaPos", $(".pgMGDisp-Cruscotto.chk-qtapos").is(':checked') ? "1" : "0")
+    })
+
+    var lsMooviChkQtaPos = null;
+
+    try {
+        lsMooviChkQtaPos = Number(oLocalStorage.get("SoloQtaPos"))
+    } catch {
+        lsMooviChkQtaPos = 0
+    }
+    if (lsMooviChkQtaPos > 0) {
+        $(".switch-container .switch input").prop("checked", true);
+        mooviChkQtaPosSetState();
+    }
+
+    //end Switch per solo quantità positive
+
+    //Selezione tra LOTTO e COMMESSA
+
+    window.lottoCommessaRoller = {
+        data: {
+            localStorageItemName: "LottoCommessa",
+            default: "LOTTO",
+        },
+        init() {
+            $(".lotto-commessa label").on("click", function (event) {
+                $(".lotto-commessa label").toggleClass("hide")
+                lottoCommessaRoller.SetLottoCommessaLabel();
+                lottoCommessaRoller.set(mooviLottoCommessa)
+                Confirm_MGDisp();
+            })
+
+            try {
+                mooviLottoCommessa = lottoCommessaRoller.get();
+            } catch (e) {
+                mooviLottoCommessa = "LOTTO"
+            }
+
+            if (mooviLottoCommessa === "LOTTO") {
+                $(".lotto-commessa label[name='Cd_ARLotto']").removeClass('hide')
+                $(".lotto-commessa label[name='Cd_DOSottoCommessa']").addClass('hide')
+            } else {
+                $(".lotto-commessa label[name='Cd_ARLotto']").addClass('hide')
+                $(".lotto-commessa label[name='Cd_DOSottoCommessa']").removeClass('hide')
+            }
+
+            this.set(mooviLottoCommessa);
+
+            this.SetLottoCommessaLabel();
+
+        },
+        SetLottoCommessaLabel() {
+            if ($(".lotto-commessa label[name='Cd_ARLotto']").hasClass('hide')) {
+                mooviLottoCommessa = "COMMESSA";
+            } else if ($(".lotto-commessa label[name='Cd_DOSottoCommessa']").hasClass('hide')) {
+                mooviLottoCommessa = "LOTTO";
+            }
+        },
+        set(value) {
+            oLocalStorage.set(this.data.localStorageItemName, value);
+        },
+        get() {
+            var itemVal = oLocalStorage.get(this.data.localStorageItemName);
+            if (itemVal == null || itemVal == undefined || itemVal === "undefined") {
+                this.set(this.data.default);
+                return this.get()
+            }
+            return itemVal;
+        },
+    };
+
+    lottoCommessaRoller.init();
+
+    //end Selezione tra LOTTO e COMMESSA
+
+    // Selezione QTA DIS. D.IMM
+    window.allQtaRoller = {
+        // data
+        data: {
+            localStorageItemName: "QtaDisDimm",
+            default: "QTA",
+            tr: { name: "all-QTA", className: ".all-QTA" },
+            container: { name: "all-qta-roller", className: "all-qta-roller" },
+            items: [
+                { name: "QTA", labelName: "label_qta", className: "label_qta", label: "QTA" },
+                { name: "DIS", labelName: "label_dis", className: "label_dis", label: "DIS." },
+                { name: "DIMM", labelName: "label_d_imm", className: "label_d_imm", label: "D.IMM" },
+            ]
+        },
+        // methods
+        init() {
+            var ct = this.getContainer();
+            /*ct.on("click", this.rollItem); // set the click event*/
+            var crtItem = this.get(); // getting the saved item
+
+            // set the items visibility
+            this.data.items.forEach(function (item, index) {
+                crtElement = ct.find("[name='" + item.labelName + "']");
+                crtElement.on("click", allQtaRoller.onClick);
+                crtElement.addClass("hide");
+                if (item.name === crtItem) crtElement.removeClass("hide");
+            })
+        },
+        getContainer() {
+            return $("." + this.data.container.className);
+        },
+        onClickCallback: function () {
+            console.warn("No onClickCallback was set!");
+        },
+        onClick(e) {
+            ct = allQtaRoller.getContainer();
+            name = $(e.target).attr("name");
+            allQtaRoller.hideAll();
+            crtName = allQtaRoller.get();
+            items = allQtaRoller.data.items;
+            items.forEach(function (item, index) {
+                if (item.name === crtName) {
+                    nextItem = items[(index < (items.length - 1)) ? index + 1 : 0]
+                    nextElem = ct.find("[name='" + nextItem.labelName + "']");
+                    nextElem.removeClass("hide");
+                    allQtaRoller.set(nextItem.name);
+                }
+            });
+            allQtaRoller.onClickCallback();
+        },
+        hideAll() {
+            allQtaRoller.getContainer().find("div").addClass("hide");
+        },
+        // save item name on the local storage
+        set(itemName) {
+            oLocalStorage.set(this.data.localStorageItemName, itemName);
+        },
+        // get the item name from the local storage
+        get() {
+            var itemVal = oLocalStorage.get(this.data.localStorageItemName);
+            if (itemVal == null || itemVal == undefined || itemVal === "undefined") {
+                this.set(this.data.default);
+                return this.get()
+            }
+            return itemVal;
+        },
+    };
+
+    allQtaRoller.onClickCallback = Confirm_MGDisp;
+
+    allQtaRoller.init();
+    // END Selezione QTA DIS. D.IMM
+
+    setResultsStatus(true);
+    ImpostaTotali();
+};
+
+//Imposta i totali
+
+function ImpostaTotali(tqta = 0, tdis = 0, tdimm = 0, um = "") {
+    if ($(".div-cdar  input[name='Cd_AR']").val().length > 0) {
+        $(".pgMGDisp-Cruscotto .contenitore-totali").removeClass("hide");
+        $("filtri.mo-bold.w3-large.w3-text-blue").removeClass("hide");
+    } else {
+        $(".pgMGDisp-Cruscotto .contenitore-totali").addClass("hide")
+        $("filtri.mo-bold.w3-large.w3-text-blue").addClass("hide");
+    }
+
+    //console.log("pgMGDisp-Cruscotto", $(".pgMGDisp-Cruscotto").attr("class"))
+
+    $(".tot-qta .valoreTot").html(tqta.toLocaleString(undefined, {
+        minimumFractionDigits: 2,
+        maximumFractionDigits: 2
+    }));
+    $(".tot-dis .valoreTot").html(tdis.toLocaleString(undefined, {
+        minimumFractionDigits: 2,
+        maximumFractionDigits: 2
+    }));
+    $(".tot-dimm .valoreTot").html(tdimm.toLocaleString(undefined, {
+        minimumFractionDigits: 2,
+        maximumFractionDigits: 2
+    }));
+    $(".um").html(um);
+}
+//End Imposta i totali
+
+function setResultsStatus(hide = true) {
+    classHide = "hide";
+    if (hide) {
+        $('label[data-key="ARDescrizione"]').addClass(classHide);
+        $('table[data-key="giacenze"]').addClass(classHide);
+        $(".div-giac").addClass(classHide);
+        $('div[data-key="pgMGDisp-Cruscotto"]').addClass(classHide);
+    } else {
+        $('label[data-key="ARDescrizione"]').removeClass(classHide);
+        $('table[data-key="giacenze"]').removeClass(classHide);
+        $(".div-giac").removeClass(classHide);
+        $('div[data-key="pgMGDisp-Cruscotto"]').removeClass(classHide);
+    }
+    $("label.msg").html("")
+
+}
+
+function Clear_MGDisp() {
+    $("input[name='Cd_AR']").val("");
+    $("input[name='Cd_MG']").val("");
+    $("input[name='Cd_MGUbicazione']").val("");
+    $("input[name='Cd_DOSottoCommessa']").val("");
+    $("input[name='Cd_ARLotto']").val("");
+    setResultsStatus(true)
+}
+
+
 
 function Confirm_MGDisp() {
+
 
     $("#pgMGDisp tr").remove(".tr-mgdisp");
     $("#pgMGDisp .filtri").text("");
 
     // Verifica che sia stato inserito almeno un filtro
-    if (fU.IsEmpty($("#pgMGDisp [name='Cd_AR']").val()) && fU.IsEmpty($("#pgMGDisp [name='Cd_MG']").val()) && fU.IsEmpty($("#pgMGDisp [name='Cd_MGUbicazione']").val())) {
+    if (fU.IsEmpty($("#pgMGDisp [name='Cd_AR']").val()) && fU.IsEmpty($("#pgMGDisp [name='Cd_MG']").val()) && fU.IsEmpty($("#pgMGDisp [name='Cd_MGUbicazione']").val())
+        && fU.IsEmpty($("#pgMGDisp [name='Cd_DOSottoCommessa']").val()) && fU.IsEmpty($("#pgMGDisp [name='Cd_ARLotto']").val())) {
         PopupMsg_Show("Errore", "", "Impostare almeno un filtro");
-
     } else {
-
         fU.ShowIf($("#pgMGDisp .AR"), fU.IsEmpty($("#pgMGDisp [name='Cd_AR']").val()));
         DivToggle_Execute($("#pgMGDisp .div-accordion"), false);
         $("#pgMGDisp .div-giac").show();
@@ -8701,34 +8181,52 @@ function Ajax_xmofn_xMOMGDisp() {
     $("#pgMGDisp .msg").text("");
     $("#pgMGDisp tr").remove(".tr-mgdisp");
 
-    Params = JSON.stringify({
-        Terminale: oApp.Terminale,
-        Cd_Operatore: oApp.Cd_Operatore,
-        Cd_MG: $("#pgMGDisp input[name='Cd_MG']").val(),
-        Cd_MGUbicazione: $("#pgMGDisp input[name='Cd_MGUbicazione']").val(),
-        Cd_AR: $("#pgMGDisp input[name='Cd_AR']").val(),
-    });
-    $.ajax({
-        url: "Moovi.aspx/xmofn_xMOMGDisp",
-        async: false,
-        data: Params,
-        type: "POST",
-        dataType: "json",
-        contentType: "application/json; charset=utf-8",
-        success: function (mydata) {
-            var dt = $.parseJSON(mydata.d);
+    setResultsStatus(false)
+    ImpostaTotali();
+
+    ajaxCallSync(
+        "/xmofn_xMOMGDisp",
+        {
+            Terminale: oApp.Terminale,
+            Cd_Operatore: oApp.Cd_Operatore,
+            Cd_MG: $("#pgMGDisp input[name='Cd_MG']").val(),
+            Cd_MGUbicazione: $("#pgMGDisp input[name='Cd_MGUbicazione']").val(),
+            Cd_AR: $("#pgMGDisp input[name='Cd_AR']").val(),
+            Cd_DOSottoCommessa: $("#pgMGDisp input[name='Cd_DOSottoCommessa']").val(),
+            Cd_ARLotto: $("#pgMGDisp input[name='Cd_ARLotto']").val(),
+            QtaPositiva: $(".pgMGDisp-Cruscotto.chk-qtapos").is(':checked') ? 1 : 0
+        },
+        function (data) {
+            var dt = JSON.parse(data.d);
+            //console.log("Valore dt = ", dt);
             if (dt.length > 0) {
                 MGDisp_Load(dt);
+                var tqta = dt.reduce(function (_this, val) {
+                    return _this + val.Quantita
+                }, 0);
+                var tdis = dt.reduce(function (_this, val) {
+                    return _this + val.QuantitaDisp
+                }, 0);
+                var tdimm = dt.reduce(function (_this, val) {
+                    return _this + val.QuantitaDimm
+                }, 0);
+
+                ImpostaTotali(tqta, tdis, tdimm, dt.length > 0 ? dt[0].Cd_ARMisura : "pz");
             }
             else {
-                $("#pgMGDisp .msg").text("Nessuna giacenza trovata");
+                ajaxCall(
+                    "/xmofn_AR_Descrizione",
+                    {
+                        "Cd_AR": $("#pgMGDisp [name='Cd_AR']").val()
+                    },
+                    function (data) {
+                        if (data.d !== null) $("#pgMGDisp .filtri").text($("#pgMGDisp [name='Cd_AR']").val() + " - " + data.d);
+                        $("#pgMGDisp .msg").text("Nessuna giacenza trovata");
+                    }
+                );
             }
-        },
-        error: function (XMLHttpRequest, textStatus, errorThrown) {
-            Ajax_ErrOut(XMLHttpRequest, textStatus, errorThrown);
         }
-    });
-
+    );
 }
 
 function MGDisp_Load(dt) {
@@ -8752,7 +8250,6 @@ function MGDisp_Load(dt) {
                 $("#pgMGDisp table").append(MGDispARDesc_Template(tr_ardesc.clone(), dt[i]));
             }
         }
-
         last_cd_ar = dt[i].Cd_AR;
     }
 }
@@ -8761,13 +8258,34 @@ function MGDispARDesc_Template(tr, item) {
 
     tr.find(".Descrizione").text(item.Descrizione);
 
+    if (item.Cd_MGUbicazione == null) {
+        tr.find(".tr-MGUbi").addClass("hide");
+    } else {
+        tr.find(".tr-MGUbi").removeClass("hide");
+    }
+
+    if (mooviLottoCommessa == "LOTTO") {
+        if (item.Cd_ARLotto == null) {
+            tr.find(".tr-LottoCommessa").addClass("hide")
+            tr.find(".LottoCommessa").addClass("hide")
+        } else {
+            tr.find(".LottoCommessa").text("LOTTO: " + item.Cd_ARLotto);
+        }
+    } else if (mooviLottoCommessa == "COMMESSA") {
+        if (item.Cd_DoSottoCommessa == null) {
+            tr.find(".tr-LottoCommessa").addClass("hide")
+            tr.find(".LottoCommessa").addClass("hide")
+        } else {
+            tr.find(".LottoCommessa").text("COMMESSA: " + item.Cd_DoSottoCommessa);
+        }
+    }
+
+
     return tr;
 }
 
 function MGDispMGUbi_Template(tr, item) {
-
     tr.find(".MGUbi").text(fU.IfEmpty(item.Cd_MG, "") + fU.IfEmpty(item.Cd_MGUbicazione, ""));
-
     return tr;
 }
 
@@ -8776,9 +8294,29 @@ function MGDisp_Template(tr, item, show_ar) {
     tr.find(".MGUbi").text("");
     if (show_ar) tr.find(".Cd_AR").text(item.Cd_AR);
     tr.find(".Cd_ARMisura").text(item.Cd_ARMisura);
-    tr.find(".Quantita").text(item.Quantita);
-    tr.find(".QuantitaDisp").text(item.QuantitaDisp);
-    tr.find(".QuantitaDimm").text(item.QuantitaDimm);
+
+    lottoCommessa = tr.find(".td-lotto-commessa");
+    if (lottoCommessaRoller.get() === "LOTTO") {
+        lottoCommessa.text(item.Cd_ARLotto)
+    } else {
+        lottoCommessa.text(item.Cd_DOSottoCommessa)
+    }
+
+    tdQta = tr.find(".td-quantita");
+    switch (allQtaRoller.get()) {
+        case "DIS":
+            tdQta.text(item.QuantitaDisp)
+            break;
+        case "DIMM":
+            tdQta.text(item.QuantitaDimm)
+            break;
+        default:
+            tdQta.text(item.Quantita)
+    }
+
+    //tr.find(".Quantita").text(item.Quantita);
+    //tr.find(".QuantitaDisp").text(item.QuantitaDisp);
+    //tr.find(".QuantitaDimm").text(item.QuantitaDimm);
 
     return tr;
 }
@@ -8814,22 +8352,17 @@ function SMRig_P_FromDocs_Load() {
 function Ajax_xmosp_xMOTRRig_P_FromDocs() {
     res = false;
 
-    Params = JSON.stringify({
-        Terminale: oApp.Terminale,
-        Cd_Operatore: oApp.Cd_Operatore,
-        Cd_MG_P: $("#pgSM [name='Cd_MG_P']").val(),
-        Cd_MGUbicazione_P: $("#pgSM [name='Cd_MGUbicazione_P']").val(),
-        Id_xMOTR: fU.ToString(oPrg.Id_xMOTR_Edit),
-        Id_DOTess: $("#" + oPrg.ActivePageId + " .ck-smdocs").attr("Id_DOTess")
-    });
-    $.ajax({
-        url: "Moovi.aspx/xmosp_xMOTRRig_P_FromDocs",
-        async: false,
-        data: Params,
-        type: "POST",
-        dataType: "json",
-        contentType: "application/json; charset=utf-8",
-        success: function (mydata) {
+    ajaxCallSync(
+        "/xmosp_xMOTRRig_P_FromDocs",
+        {
+            Terminale: oApp.Terminale,
+            Cd_Operatore: oApp.Cd_Operatore,
+            Cd_MG_P: $("#pgSM [name='Cd_MG_P']").val(),
+            Cd_MGUbicazione_P: $("#pgSM [name='Cd_MGUbicazione_P']").val(),
+            Id_xMOTR: fU.ToString(oPrg.Id_xMOTR_Edit),
+            Id_DOTess: $("#" + oPrg.ActivePageId + " .ck-smdocs").attr("Id_DOTess")
+        },
+        function (mydata) {
             var r = $.parseJSON(mydata.d);
             if (r[0].Result > 0) {
                 res = true;
@@ -8837,11 +8370,8 @@ function Ajax_xmosp_xMOTRRig_P_FromDocs() {
             else {
                 PopupMsg_Show("ERRORE", r[0].Result, r[0].Messaggio);
             }
-        },
-        error: function (XMLHttpRequest, textStatus, errorThrown) {
-            Ajax_ErrOut(XMLHttpRequest, textStatus, errorThrown);
         }
-    });
+    );
 
     return res;
 }
@@ -8850,21 +8380,16 @@ function Ajax_xmosp_xMOTRRig_P_FromDocs() {
 function Ajax_xmosp_xMOTRRig_P_FromMGUBI() {
     res = false;
 
-    Params = JSON.stringify({
-        Terminale: oApp.Terminale,
-        Cd_Operatore: oApp.Cd_Operatore,
-        Cd_MG_P: $("#pgSM [name='Cd_MG_P']").val(),
-        Cd_MGUbicazione_P: $("#pgSM [name='Cd_MGUbicazione_P']").val(),
-        Id_xMOTR: fU.ToString(oPrg.Id_xMOTR_Edit),
-    });
-    $.ajax({
-        url: "Moovi.aspx/xmosp_xMOTRRig_P_FromMGUBI",
-        async: false,
-        data: Params,
-        type: "POST",
-        dataType: "json",
-        contentType: "application/json; charset=utf-8",
-        success: function (mydata) {
+    ajaxCallSync(
+        "/xmosp_xMOTRRig_P_FromMGUBI",
+        {
+            Terminale: oApp.Terminale,
+            Cd_Operatore: oApp.Cd_Operatore,
+            Cd_MG_P: $("#pgSM [name='Cd_MG_P']").val(),
+            Cd_MGUbicazione_P: $("#pgSM [name='Cd_MGUbicazione_P']").val(),
+            Id_xMOTR: fU.ToString(oPrg.Id_xMOTR_Edit),
+        },
+        function (mydata) {
             var r = $.parseJSON(mydata.d);
             if (r[0].Result > 0) {
                 res = true;
@@ -8872,11 +8397,8 @@ function Ajax_xmosp_xMOTRRig_P_FromMGUBI() {
             else {
                 PopupMsg_Show("ERRORE", r[0].Result, r[0].Messaggio);
             }
-        },
-        error: function (XMLHttpRequest, textStatus, errorThrown) {
-            Ajax_ErrOut(XMLHttpRequest, textStatus, errorThrown);
         }
-    });
+    );
 
     return res;
 }
@@ -8885,20 +8407,15 @@ function Ajax_xmosp_xMOTRRig_P_FromMGUBI() {
 function Ajax_xmosp_xMOTRRig_T_Save() {
     res = false;
 
-    Params = JSON.stringify({
-        Terminale: oApp.Terminale,
-        Cd_Operatore: oApp.Cd_Operatore,
-        Mode: 0, // ### Parametro al momento fisso.. andrà gestito
-        Id_xMOTR: fU.ToString(oPrg.Id_xMOTR_Edit),
-    });
-    $.ajax({
-        url: "Moovi.aspx/xmosp_xMOTRRig_T_Save",
-        async: false,
-        data: Params,
-        type: "POST",
-        dataType: "json",
-        contentType: "application/json; charset=utf-8",
-        success: function (mydata) {
+    ajaxCallSync(
+        "/xmosp_xMOTRRig_T_Save",
+        {
+            Terminale: oApp.Terminale,
+            Cd_Operatore: oApp.Cd_Operatore,
+            Mode: 0, // ### Parametro al momento fisso.. andrà gestito
+            Id_xMOTR: fU.ToString(oPrg.Id_xMOTR_Edit),
+        },
+        function (mydata) {
             var r = $.parseJSON(mydata.d);
             if (r[0].Result > 0) {
                 res = true;
@@ -8906,11 +8423,8 @@ function Ajax_xmosp_xMOTRRig_T_Save() {
             else {
                 PopupMsg_Show("ERRORE", '', 'nella procedura di assegnazione ubicazioni');
             }
-        },
-        error: function (XMLHttpRequest, textStatus, errorThrown) {
-            Ajax_ErrOut(XMLHttpRequest, textStatus, errorThrown);
         }
-    });
+    );
 
     return res;
 }
@@ -8978,7 +8492,7 @@ function SMRig_T_Load() {
     $(p).find("input[name='Cd_AR']").val(item.Cd_AR);
     $(p).find("input[name='Quantita']").val(fU.ToString(item.Quantita));
     $(p).find("select[name='Cd_ARMisura'] .op-um").remove();
-    Quantita_Onfocus($(p).find("input[name='Quantita']"));
+    AR_Set_Qta_UM();
 
     $(p).find("select[name='Cd_ARMisura']").val(fU.ToString(item.Cd_ARMisura).toUpperCase());
 
@@ -9016,30 +8530,23 @@ function SMRig_T_Load() {
 // Salva la riga di stoccaggio come articolo stoccato nella tabella trasferimento arrivo
 function Ajax_xmosp_xMOTRRig_TA_Save() {
 
-    var p = $("#" + oPrg.ActivePageId);
-
     // Se la riga risulta già stoccata va al prossimo articolo da stoccare senza salvare
     if (fU.IsEmpty(oPrg.SM.dtxMOTRRig_T[oPrg.SM.key].Id_xMOTRRig_A)) {
 
-        Params = JSON.stringify({
-            Terminale: oApp.Terminale,
-            Cd_Operatore: oApp.Cd_Operatore,
-            Id_xMOTR: fU.ToInt32(oPrg.Id_xMOTR_Edit),
-            Quantita: parseFloat($(p).find("[name='Quantita']").val()),
-            Cd_ARMisura: fU.ToString($(p).find("select[name='Cd_ARMisura'] :selected").val()),
-            Cd_MG_A: fU.ToString($(p).find("[name='Cd_MG_A']").val()),
-            Cd_MGUbicazione_A: fU.ToString($(p).find("[name='Cd_MGUbicazione_A']").val()),
-            Id_xMOTRRig_P: fU.ToInt32(oPrg.SM.dtxMOTRRig_T[oPrg.SM.key].Id_xMOTRRig_P),
-            Id_xMOTRRig_T: fU.ToInt32(oPrg.SM.dtxMOTRRig_T[oPrg.SM.key].Id_xMOTRRig_T),
-        });
-        $.ajax({
-            url: "Moovi.aspx/xmosp_xMOTRRig_TA_Save",
-            async: false,
-            data: Params,
-            type: "POST",
-            dataType: "json",
-            contentType: "application/json; charset=utf-8",
-            success: function (mydata) {
+        ajaxCallSync(
+            "/xmosp_xMOTRRig_TA_Save",
+            {
+                Terminale: oApp.Terminale,
+                Cd_Operatore: oApp.Cd_Operatore,
+                Id_xMOTR: fU.ToInt32(oPrg.Id_xMOTR_Edit),
+                Quantita: parseFloat(ActivePage().find("[name='Quantita']").val()),
+                Cd_ARMisura: fU.ToString(ActivePage().find("select[name='Cd_ARMisura'] :selected").val()),
+                Cd_MG_A: fU.ToString(ActivePage().find("[name='Cd_MG_A']").val()),
+                Cd_MGUbicazione_A: fU.ToString(ActivePage().find("[name='Cd_MGUbicazione_A']").val()),
+                Id_xMOTRRig_P: fU.ToInt32(oPrg.SM.dtxMOTRRig_T[oPrg.SM.key].Id_xMOTRRig_P),
+                Id_xMOTRRig_T: fU.ToInt32(oPrg.SM.dtxMOTRRig_T[oPrg.SM.key].Id_xMOTRRig_T),
+            },
+            function (mydata) {
                 var r = $.parseJSON(mydata.d);
                 if (r[0].Result > 0) {
                     oPrg.SM.dtxMOTRRig_T[oPrg.SM.key].Id_xMOTRRig_A = r[0].Id_xMOTRRig_A
@@ -9050,11 +8557,9 @@ function Ajax_xmosp_xMOTRRig_TA_Save() {
                 else {
                     PopupMsg_Show("ERRORE", r[0].Result, r[0].Messaggio);
                 }
-            },
-            error: function (XMLHttpRequest, textStatus, errorThrown) {
-                Ajax_ErrOut(XMLHttpRequest, textStatus, errorThrown);
             }
-        });
+        );
+
     }
 }
 
@@ -9106,23 +8611,17 @@ function Order_dtxMOTRRig_T() {
 
 function Ajax_xmosp_xMOTRRig_T_RicercaUbicazione_Escludi() {
 
-    Params = JSON.stringify({
-        Terminale: oApp.Terminale,
-        Cd_Operatore: oApp.Cd_Operatore,
-        Id_xMOTRRig_P: fU.ToInt32(oPrg.SM.dtxMOTRRig_T[oPrg.SM.key].Id_xMOTRRig_P),
-        Quantita: oPrg.SM.dtxMOTRRig_T[oPrg.SM.key].Quantita,
-        Cd_MG_A: $("#" + oPrg.ActivePageId + " [name='Cd_MG_A']").val(),
-        Cd_MGUbicazione_Escludi: $("#" + oPrg.ActivePageId + " [name='Cd_MGUbicazione_A']").val()
-    });
-
-    $.ajax({
-        url: "Moovi.aspx/xmosp_xMOTRRig_T_RicercaUbicazione_Escludi",
-        async: false,
-        data: Params,
-        type: "POST",
-        dataType: "json",
-        contentType: "application/json; charset=utf-8",
-        success: function (mydata) {
+    ajaxCallSync(
+        "/xmosp_xMOTRRig_T_RicercaUbicazione_Escludi",
+        {
+            Terminale: oApp.Terminale,
+            Cd_Operatore: oApp.Cd_Operatore,
+            Id_xMOTRRig_P: fU.ToInt32(oPrg.SM.dtxMOTRRig_T[oPrg.SM.key].Id_xMOTRRig_P),
+            Quantita: oPrg.SM.dtxMOTRRig_T[oPrg.SM.key].Quantita,
+            Cd_MG_A: $("#" + oPrg.ActivePageId + " [name='Cd_MG_A']").val(),
+            Cd_MGUbicazione_Escludi: $("#" + oPrg.ActivePageId + " [name='Cd_MGUbicazione_A']").val()
+        },
+        function (mydata) {
             var r = $.parseJSON(mydata.d);
             if (!fU.IsEmpty(r[0].Cd_MGUbicazione)) {
                 $("#" + oPrg.ActivePageId + " input[name='Cd_MGUbicazione_A']").val(r[0].Cd_MGUbicazione).change();
@@ -9131,11 +8630,9 @@ function Ajax_xmosp_xMOTRRig_T_RicercaUbicazione_Escludi() {
             else {
                 PopupMsg_Show("ERRORE", r[0].Result, "Nessuna ubicazione trovata");
             }
-        },
-        error: function (XMLHttpRequest, textStatus, errorThrown) {
-            Ajax_ErrOut(XMLHttpRequest, textStatus, errorThrown);
         }
-    });
+    );
+
 }
 
 function SMRig_A_DeleteIt(idxmotrriga) {
@@ -9150,20 +8647,15 @@ function SMRig_A_DeleteIt(idxmotrriga) {
 }
 
 function Ajax_xmosp_SMRig_A_Del(idxmotrriga) {
-    Params = JSON.stringify({
-        Terminale: oApp.Terminale,
-        Cd_Operatore: oApp.Cd_Operatore,
-        Id_xMOTRRig_A: fU.ToInt32(idxmotrriga)
-    });
 
-    $.ajax({
-        url: "Moovi.aspx/xmosp_SMRig_A_Del",
-        async: false,
-        data: Params,
-        type: "POST",
-        dataType: "json",
-        contentType: "application/json; charset=utf-8",
-        success: function (mydata) {
+    ajaxCallSync(
+        "/xmosp_SMRig_A_Del",
+        {
+            Terminale: oApp.Terminale,
+            Cd_Operatore: oApp.Cd_Operatore,
+            Id_xMOTRRig_A: fU.ToInt32(idxmotrriga)
+        },
+        function (mydata) {
             var r = $.parseJSON(mydata.d);
             if (r[0].Result > 0) {
                 // Ricaricare la lista aggiornata
@@ -9172,107 +8664,77 @@ function Ajax_xmosp_SMRig_A_Del(idxmotrriga) {
             else {
                 PopupMsg_Show("ERRORE", r[0].Result, r[0].Messaggio);
             }
-        },
-        error: function (XMLHttpRequest, textStatus, errorThrown) {
-            Ajax_ErrOut(XMLHttpRequest, textStatus, errorThrown);
         }
-    });
+    );
 }
 
 function Ajax_xmofn_StatoGiac(Cd_MGUbi) {
 
     var r
 
-    Params = JSON.stringify({
-        Terminale: oApp.Terminale,
-        Cd_Operatore: oApp.Cd_Operatore,
-        Cd_MG: fU.ToString(fMG.Mg4Find($("#" + oPrg.ActivePageId + " input[name='Cd_MG_P']").val(), $("#" + oPrg.ActivePageId + " input[name='Cd_MG_A']").val())),
-        Cd_MGUbicazione: Cd_MGUbi,
-    });
-
-    $.ajax({
-        url: "Moovi.aspx/xmofn_StatoGiac",
-        async: false,
-        data: Params,
-        type: "POST",
-        dataType: "json",
-        contentType: "application/json; charset=utf-8",
-        success: function (mydata) {
+    ajaxCallSync(
+        "/xmofn_StatoGiac",
+        {
+            Terminale: oApp.Terminale,
+            Cd_Operatore: oApp.Cd_Operatore,
+            Cd_MG: fU.ToString(fMG.Mg4Find($("#" + oPrg.ActivePageId + " input[name='Cd_MG_P']").val(), $("#" + oPrg.ActivePageId + " input[name='Cd_MG_A']").val())),
+            Cd_MGUbicazione: Cd_MGUbi,
+        },
+        function (mydata) {
             r = $.parseJSON(mydata.d);
             //$("#" + oPrg.ActivePageId + " .statogiac").css("background-color", r[0].StatoGiac > 0 ? "orange" : "green", "height", $("#" + oPrg.ActivePageId + " input[name='Cd_MGUbicazione']"));
             r = r[0].StatoGiac;
-        },
-        error: function (XMLHttpRequest, textStatus, errorThrown) {
-            Ajax_ErrOut(XMLHttpRequest, textStatus, errorThrown);
         }
-    });
+    );
+
     return r;
 }
 
 function Ajax_xmosp_xMOTRRig_P_AddAR() {
 
-    Params = JSON.stringify({
-
-        Terminale: oApp.Terminale,
-        Cd_Operatore: oApp.Cd_Operatore,
-        Id_xMOTR: oPrg.Id_xMOTR_Edit,
-        Cd_AR: $("#pgSMRig input[name='Cd_AR']").val(),
-        Quantita: $("#pgSMRig input[name='Quantita']").val(),
-        Cd_ARMisura: $("#pgSMRig select[name='Cd_ARMisura']").val(),
-        Cd_MG_P: oPrg.drTR.Cd_MG_P,
-        Cd_MGUbicazione_P: $("#pgSMRig input[name='Cd_MGUbicazione_P']").val(),
-    });
-
-    $.ajax({
-        url: "Moovi.aspx/xmosp_xMOTRRig_P_AddAR",
-        async: false,
-        data: Params,
-        type: "POST",
-        dataType: "json",
-        contentType: "application/json; charset=utf-8",
-        success: function (mydata) {
+    ajaxCallSync(
+        "/xmosp_xMOTRRig_P_AddAR",
+        {
+            Terminale: oApp.Terminale,
+            Cd_Operatore: oApp.Cd_Operatore,
+            Id_xMOTR: oPrg.Id_xMOTR_Edit,
+            Cd_AR: $("#pgSMRig input[name='Cd_AR']").val(),
+            Quantita: $("#pgSMRig input[name='Quantita']").val(),
+            Cd_ARMisura: $("#pgSMRig select[name='Cd_ARMisura']").val(),
+            Cd_MG_P: oPrg.drTR.Cd_MG_P,
+            Cd_MGUbicazione_P: $("#pgSMRig input[name='Cd_MGUbicazione_P']").val(),
+        },
+        function (mydata) {
             var r = $.parseJSON(mydata.d);
             if (r[0].Result > 0) {
                 Ajax_xmofn_xMOTRRig_TA();
                 $('#pgSMRig .section').hide();
                 $('#pgSMRig .div-table').show();
             }
-        },
-        error: function (XMLHttpRequest, textStatus, errorThrown) {
-            Ajax_ErrOut(XMLHttpRequest, textStatus, errorThrown);
         }
-    });
+    );
+
 }
 
 function Ajax_xmosp_xMOMGUbicazione_Ricerca(Cd_AR, Quantita, Cd_MG, Esclusioni) {
-    var Params = {
-        Terminale: oApp.Terminale,
-        Cd_Operatore: oApp.Cd_Operatore,
-        Cd_AR: Cd_AR,
-        Quantita: Quantita,
-        Cd_MG: Cd_MG,
-        Esclusioni: Esclusioni
-    };
 
-    var MGUbicazione = null;
-
-    $.ajax({
-        url: "Moovi.aspx/xmosp_xMOMGUbicazione_Ricerca",
-        async: false,
-        data: JSON.stringify(Params),
-        type: "POST",
-        dataType: "json",
-        contentType: "application/json; charset=utf-8",
-        success: function (mydata) {
+    ajaxCallSync(
+        "/xmosp_xMOMGUbicazione_Ricerca",
+        {
+            Terminale: oApp.Terminale,
+            Cd_Operatore: oApp.Cd_Operatore,
+            Cd_AR: Cd_AR,
+            Quantita: Quantita,
+            Cd_MG: Cd_MG,
+            Esclusioni: Esclusioni
+        },
+        function (mydata) {
             var data = JSON.parse(mydata.d);
 
             if (data && data.length > 0)
                 MGUbicazione = data[0];
-        },
-        error: function (XMLHttpRequest, textStatus, errorThrown) {
-            Ajax_ErrOut(XMLHttpRequest, textStatus, errorThrown);
         }
-    });
+    );
 
     return MGUbicazione;
 }
@@ -9283,7 +8745,7 @@ function SMRig_NewAR() {
     $("#pgSMRig .div-input select[name='Cd_ARMisura'] .op-um").remove();
     $("#pgSMRig .section").hide();
     $("#pgSMRig .div-input").show();
-    $("#pgSMRig .div-input input[name='Cd_AR']").focus();
+    $("#pgSMRig .div-input input[name='Cd_AR']").focus().select();
 }
 
 // -------------------------------------------------
@@ -9299,4 +8761,180 @@ function GestioneFocusPK() {
     else {
         HideAndFocus('Popup_PackList_New');
     }
+}
+
+function Ajax_xmofn_xMORLPrelievo_Azzera() {
+    // Pulisce le righe della tabella
+    ActivePage().find(".ar-ele").remove();
+
+    ajaxCallSync(
+        "/xmofn_xMORLPrelievo_Azzera",
+        {
+            Terminale: oApp.Terminale,
+            Cd_Operatore: oApp.Cd_Operatore,
+            Id_xMORL: oPrg.Id_xMORL_Edit
+        },
+        function (mydata) {
+            var r = $.parseJSON(mydata.d);
+            if (r.length > 0) {
+
+                var last_ar = '';
+                var last_id_dotes = 0;
+                var ar;
+                var ar_ele = '';
+                var ar_footer = '';
+                var ar_qta = 0;
+                var card = ActivePage().find(".template").clone().addClass("ar-ele").removeAttr("style");
+
+                for (i = 0; i < r.length; i++) {
+                    if (last_ar != r[i].Cd_AR + r[i].Descrizione) {
+                        //Carica l'ultimo articolo se presente
+                        if (ar)
+                            ActivePage().find(".articoli").append(ar);
+                        //Nuovo articolo
+                        last_ar = r[i].Cd_AR + r[i].Descrizione;
+                        ar_qta = 0;
+                        ar = card.clone();
+                        $(ar).find(".w3-card-header").html(r[i].Cd_AR + r[i].Descrizione);
+                        $(ar).find(".w3-card-ele").html("");
+                        last_id_dotes = 0;
+                    }
+                    //Carica l'elemento
+                    if (last_id_dotes != r[i].Id_DOTes) {
+                        last_id_dotes = r[i].Id_DOTes;
+                        $(ar).find(".w3-card-ele").html($(ar).find(".w3-card-ele").html() + '<b>' + r[i].NumeroDoc + '</b><br />');
+                    }
+                    ar_ele = '<input type="checkbox" id_dorig="' + r[i].Id_DORig + '"  ' + (r[i].QtaLetta > 0 ? 'checked = "checked"' : '') + ' />&nbsp;Riga [' + r[i].Riga + '] Qta Ev.: ' + r[i].QtaEvadibile + " " + r[i].Cd_ARMisura + (r[i].DataConsegna ? '<br /><b>Consegnare il</b> ' + fU.DateToLocalDateString(r[i].DataConsegna) : '') + (r[i].NoteRiga ? '<br /><b>Note</b> ' + r[i].NoteRiga : '<br />')
+                    //ar_ele = '<input type="checkbox" id_dorig="' + r[i].Id_DORig + '"  ' + (r[i].QtaLetta > 0 ? 'checked = "checked"' : '') + ' />&nbsp;Riga [' + r[i].Riga + '] Qta Ev.: ' + r[i].QtaEvadibile + " " + r[i].Cd_ARMisura + (r[i].DataConsegna ? '<br /><b>Consegnare il</b> ' + fU.DateJsonToDate(r[i].DataConsegna) : '') + (r[i].NoteRiga ? '<br /><b>Note</b> ' + r[i].NoteRiga : '<br />')
+                    $(ar).find(".w3-card-ele").html($(ar).find(".w3-card-ele").html() + ar_ele);
+                    ar_qta = ar_qta + r[i].QtaEvadibile;
+                    //aggiorna il footer
+                    ar_footer = "Totale prelievo/letture = " + ar_qta + "/" + r[i].QtaLetta + " " + r[i].Cd_ARMisura;
+                    if (ar_qta == r[i].QtaLetta)
+                        ar_footer = "<span class='w3-green'>" + ar_footer + "</span>";
+                    if (ar_qta > r[i].QtaLetta)
+                        ar_footer = "<span class='w3-blue'>" + ar_footer + "</span>";
+                    if (ar_qta < r[i].QtaLetta)
+                        ar_footer = "<span class='w3-orange'>" + ar_footer + "</span>";
+                    $(ar).find(".w3-card-footer").html(ar_footer);
+                }
+                //Carica l'ultimo articolo se presente
+                if (ar)
+                    ActivePage().find(".articoli").append(ar);
+            }
+        }
+    );
+
+}
+
+function pgRLPrelievo_UI() {
+    // Gestione della pagina di prelievo
+    if (oPrg.drDO.xMOResiduoInPrelievo != 2) {
+        $("#pgRLPrelievo input:checkbox").attr("disabled", true);
+        $("#pgRLPrelievo .selall").hide();
+    } else {
+        $("#pgRLPrelievo input:checkbox").attr("disabled", false);
+        $("#pgRLPrelievo .selall").show();
+    }
+}
+
+function pgRLPrelievo_CheckAll() {
+    ActivePage().find(".articoli input:checkbox").prop("checked", fU.IsChecked(ActivePage().find(".ck-all")));
+}
+
+// Salvataggio delle righe da azzerare
+function Ajax_xmosp_xMORLPrelievo_AzzeraSave() {
+    var out = false;
+
+    ajaxCallSync(
+        "/xmosp_xMORLPiede_Save",
+        {
+            Terminale: oApp.Terminale,
+            Cd_Operatore: oApp.Cd_Operatore,
+            Id_xMORL: oPrg.Id_xMORL_Edit,
+        },
+        function (mydata) {
+            var r = $.parseJSON(mydata.d);
+            if (r[0].Result == 1) {
+                /* Se l'operatore ha chiesto di salvare il documento (senza stampare)
+                o se non sono presenti moduli di stampa
+                salva il documento e torna alla Home*/
+                if (!fU.ToBool(ActivePage().find(".ck-print").prop("checked")) || (oPrg.drDO.Moduli <= 0)) {
+                    //Salvo lo stato del documento accodandolo al listener
+                    var cmd = Listener_RLSave(oPrg.Id_xMORL_Edit);
+                    Ajax_ListenerCoda_Add(cmd, oPrg.Id_xMORL_Edit);
+                    oPrg.Pages[oPrg.ActivePageIdx].GoHome = true;
+                }
+                else {
+                    oPrg.Pages[oPrg.ActivePageIdx].GoHome = false;
+                    //Carico i dati di drRL
+                    oPrg.drRL = null;
+                    out = Ajax_xmovs_xMORL();
+                }
+                out = true;
+            }
+            else {
+                PopupMsg_Show("ERRORE", r[0].Result, r[0].Messaggio);
+            }
+        }
+    );
+
+    return out;
+
+}
+
+
+// User pref imposta la maschera
+function UserPref_Load() {
+    var popup = $("#Popup_UserPref");
+    // Carica tutte le preferenze
+    popup.find("[data-up='altezzaLetture']").val(+oLocalStorage.get("altezzaLetture", 150));
+    // Show del detail
+    popup.show();
+
+    popup.find("[data-up='altezzaLetture']").focus().select();
+    popup.find("[data-up='altezzaLetture']").on('keydown', UserPref_KeyDown);
+}
+
+// User pref keypress
+function UserPref_KeyDown(event) {
+    // keydown
+    var keycode = (event.keyCode ? event.keyCode : event.which);
+    if (keycode === 13 && event.ctrlKey) {
+        UserPref_Save();
+    } else if (keycode === 27) {
+        HideAndFocus('Popup_UserPref');
+    }
+}
+
+// User pref validazione
+function UserPref_Validate(sErr) {
+    var popup = $("#Popup_UserPref");
+    var altezzaLetture = +popup.find("[data-up='altezzaLetture']").val();
+    if (altezzaLetture < 100 || altezzaLetture > 600) {
+        sErr.number = -98;
+        sErr.message = 'Il valore deve essere compreso tra 100 e 600.';
+        return false;
+    }
+    return true;
+}
+
+// User pref salva
+function UserPref_Save() {
+    var sErr = {
+        number: -99,
+        message: ''
+    };
+    var popup = $("#Popup_UserPref");
+    //Validare i campi
+    if (UserPref_Validate(sErr)) {
+        // Salva tutte le preferenze
+        oLocalStorage.set("altezzaLetture", +popup.find("[data-up='altezzaLetture']").val());
+        // Chiamo la funzione che imposta l'altezza del container delle letture
+        onRowCountChange();
+        // Hide del detail
+        HideAndFocus('Popup_UserPref');
+        popup.find("[data-up='altezzaLetture']").off('keydown', UserPref_KeyDown);
+    } else
+        PopupMsg_Show("ERRORE", sErr.number, sErr.message);
 }

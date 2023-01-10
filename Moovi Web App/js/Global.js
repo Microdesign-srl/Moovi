@@ -1,17 +1,10 @@
 ﻿/*
-    // Global.js
-    // Contiene tutte le funzioni e gli oggetti globali del programma
-
-    // DATA E ULTIMA VERSIONE RILASCIATA
-    // Ver 1.010 (0.6.000) Del 17/02/2021
-
-    // DATA ULTIMA MODIFICA ALL'INTERA SOLUZIONE
-    // 04/11/2020
+    Contiene tutte le funzioni e gli oggetti globali del programma
 */
 
 var DEBUG = false;
 
-var Versione = "1.11 (W15)";
+var Versione = "1.20.00";
 
 /* Enumeratore delle pagine di Moovi */
 var enumPagine = {
@@ -49,6 +42,7 @@ var enumPagine = {
     , 'pgPRTRAttivita': 32                  // Pagina trasferimento materiali attività
     , 'pgPRTRMateriale': 33                 // Pagina trasferimento materiali 
     , 'pgPRMPMateriale': 34                 // Pagina rientro materiali 
+    , 'pgRLPrelievo': 35                    // Azzera prelievo
 };
 
 //Enumeratore browser
@@ -188,6 +182,7 @@ var oPrg = {
     "Id_xMOTR_Edit": null,                      // Identificativo univoco della testa del trasferimento di Moovi che sto editando  
     "Id_xMOIN_Edit": null,                      // Identificativo univoco della testa dell'inventariooPrg.Load
     "Id_DOTes": null,                           // Identificativo univoco della testa del documento di ARCA che sto editando in questo momento (es.: utile alla ristampa, ecc)
+    "Id_DORig": null,                           // Identificativo univoco della riga del documento di ARCA letta
     "drDO": null,                               // Riga dell'array oApp.dtDO selezionato
     "drRL": null,                               // Riga della testa della rilevazione
     "drTR": null,                               // Riga della testa del Trasferimento
@@ -199,10 +194,15 @@ var oPrg = {
         "ARIncompleti": 0,                      // Articoli del prelievo non completamente evasi
         "ARCompleti": 0,                        // Articoli del prelievo completamente evasi
         "Letture": 0,                           // Numero di letture effettuate nel prelievo corrente
+        "dtRLRig_AR": [],                       // dt contenente le righe della funzione xMORLRig_AR
+        "getARItemByAR": function (Cd_AR) {
+            return this.dtRLRig_AR.find(function (item) { return item.Cd_AR.trim() == Cd_AR.trim(); });
+        },
         "ResetAll": function () {
             this.ARIncompleti = 0;
             this.ARCompleti = 0;
             this.Letture = 0;
+            this.dtRLRig_AR = [];
         }
     },
     "PK": {
@@ -289,6 +289,7 @@ var oPrg = {
         this.Id_xMOTR_Edit = 0;
         this.Id_xMOIN_Edit = 0;
         this.Id_DOTes = 0;
+        this.Id_DORig = 0;
         //this.Cd_DO = null;
         this.drDO = null;
         this.drRL = null;
@@ -309,7 +310,6 @@ var oPrg = {
         this.PRAV.ResetAll();
         this.PRMP.ResetAll();
     },
-
     "Load": function (keyprg, Cd_DO, Id_toEdit, Edit_Area) {
         // reset
         this.Reset();
@@ -356,7 +356,7 @@ var oPrg = {
         }
     },
     "PageIdx": function (PageValue) {
-        var i = null;
+            var i = null;
         $.each(this.Pages, function (idx, page) {
             if (page.Value == PageValue) {
                 i = idx;
@@ -416,7 +416,6 @@ var Nav = {
             this.OnNav = true;
             // Se ho selezionato un programma che ha delle pagine
             if (oPrg.Key != null && (oPrg.Pages && oPrg.Pages.length > 0)) {
-
                 // Validazione della pagina corrente
                 if (fPage.Validate()) {
                     //Se richiesto va alla Home (o è l'ultima pagina o il programma esce prima dal flusso standard)
@@ -555,6 +554,9 @@ var fPage = {
             case enumPagine.pgINPiede:
             case enumPagine.pgMGDisp:
             case enumPagine.pgSMRig_T:
+            case enumPagine.pgRLPrelievo:
+                r = true;
+                break;
             case enumPagine.pgPRTRAttivita:
                 // Posso andare avanti solo se ho scelto una bolla
                 if (oPrg.PRAV.keyBLA == null)
@@ -576,10 +578,14 @@ var fPage = {
 
             case enumPagine.pgDocRistampa:
                 // carico le impostazioni del documento corrente
-                oPrg.LoadDO($("#pgDocRistampa label[name='Cd_DO']").text());
-                oPrg.Id_DOTes = $("#pgDocRistampa label[name='Id_DOTes']").text();
-                oPrg.Id_xMORL_Edit = $("#pgDocRistampa label[name='Id_xMORL_Edit']").text();
-                r = true;
+                if (!fU.IsEmpty($("#pgDocRistampa label[name='Cd_DO']").text())) {
+                    oPrg.LoadDO($("#pgDocRistampa label[name='Cd_DO']").text());
+                    oPrg.Id_DOTes = $("#pgDocRistampa label[name='Id_DOTes']").text();
+                    oPrg.Id_xMORL_Edit = $("#pgDocRistampa label[name='Id_xMORL_Edit']").text();
+                    r = true;
+                } else {
+                    m += "\nSelezionare uno tra i documenti stampabili.";
+                }
                 break;
 
             case enumPagine.pgAvviaConsumo:
@@ -661,7 +667,7 @@ var fPage = {
                     if (oPrg.RL.Letture == 0) m += "<br />- Nessuna lettura effettuata.";
                     if (oPrg.drDO.xMOPrelievo == 1 && oPrg.RL.ARIncompleti > 0) {
                         var msg = "Presenza di Articoli non completamente prelevati.";
-                        if (fU.ToBool(oPrg.drDO.xMOResiduoInPrelievo)) {
+                        if (fU.ToInt32(oPrg.drDO.xMOResiduoInPrelievo) == 1) {
                             msg += String.fromCharCode(13) + "ATTENZIONE: se si sceglie di continuare i residui del prelievo verranno azzerati!"
                         }
                         DoIt = confirm(msg + String.fromCharCode(13) + "Proseguire nella creazione del documento?", "ATTENZIONE!");
@@ -719,7 +725,8 @@ var fPage = {
                 break;
 
             case enumPagine.pgTR:
-                if (!fU.IsDate($("#pgTR input[name='DataMov']").val())) {
+                //console.log($("#pgTR input[name='DataMov']").val());
+                if (!fU.IsDate(fU.LocalDateStringToDate($("#pgTR input[name='DataMov']").val()))) {
                     m += '\nLa data del movimento non è nel formato richiesto (GG/MM/AAAA).'
                 }
                 if (m == "") {
@@ -802,6 +809,7 @@ var fPage = {
                 }
                 // Se il salvataggio == true allora disabilito la pagina corrente
                 if (r) {
+                    //Memorizza il codice spedizione (sono sicuro che è coerente)
                     oPrg.Pages[oPrg.PageIdx(enumPagine.pgSP)].Enabled = false;
                 }
                 break;
@@ -972,6 +980,16 @@ var fPage = {
                 else {
                     oPrg.Pages[oPrg.PageIdx(enumPagine.pgRLPK)].Enabled = false;
                 }
+
+                //Disabilita la pagina del reset residuo in preleievo
+                if (oPrg.drDO.xMOResiduoInPrelievo != 2)
+                    //console.log("r 986")
+                    oPrg.Pages[oPrg.PageIdx(enumPagine.pgRLPrelievo)].Enabled = false;
+                break;
+
+            case enumPagine.pgRLPrelievo:
+                //Azzera residuo in prelievo da interfaccia se configurato
+                Ajax_xmofn_xMORLPrelievo_Azzera();
                 break;
 
             case enumPagine.pgRLPK:
@@ -1099,6 +1117,10 @@ var fPage = {
                 break;
             case enumPagine.pgRLRig:
                 pgRLRig_UI();
+
+                break;
+            case enumPagine.pgRLPrelievo:
+                pgRLPrelievo_UI();
                 break;
             case enumPagine.pgRLPK:
                 pgRLPK_UI();
@@ -1198,6 +1220,11 @@ var fPage = {
                 }, 350);
                 r = true;
                 break;
+
+            case enumPagine.pgRLPrelievo:
+                var r = Ajax_xmosp_xMORLPrelievo_AzzeraSave();
+                break;
+
             case enumPagine.pgRLPK:
                 // Salvo le modifiche effettuate al pklistref modificato per ultimo 
                 // NB lo faccio nel back perchè gli altri vengono salvati al click delle frecce, l'ultimo rimarrebbe non salvato
@@ -1297,22 +1324,30 @@ var fDO = {
  */
 var fMG = {
 
-    "Mg4Find": function (Cd_MG_P, Cd_MG_A) {
+    "Mg4Find": function (Cd_MG_P, Cd_MG_A, Cd_MG = null) {
+
         //normalizza i valori
         // Cd_MG_P = fU.IsEmpty(Cd_MG_P);
         // Cd_MG_A = fU.IsEmpty(Cd_MG_A);
 
-        //verifica i magazzini passati alla funzione
-        if (Cd_MG_P == "" && Cd_MG_A == "") {
-            return "";
-        } else if (Cd_MG_P != "" && Cd_MG_A == "") {
-            return Cd_MG_P;
-        } else if (Cd_MG_P == "" && Cd_MG_A != "") {
-            return Cd_MG_A;
+        if (Cd_MG == null) { // se non è un magazzino unico
+            //verifica i magazzini passati alla funzione
+            if (Cd_MG_P == "" && Cd_MG_A == "") {
+                return "";
+            } else if (Cd_MG_P != "" && Cd_MG_A == "") {
+                return Cd_MG_P;
+            } else if (Cd_MG_P == "" && Cd_MG_A != "") {
+                return Cd_MG_A;
+            } else {
+                //Se sono presenti entrambi in magazzini restituisco quello di partenza
+                return Cd_MG_P;
+            }
         } else {
-            //Se sono presenti entrambi in magazzini restituisco quello di partenza
-            return Cd_MG_P;
+            // qui il magazzino è unico
+            //console.log("Cd_MG", Cd_MG);
+            return Cd_MG
         }
+
     },
     "Mg4PA": function (Codice) {
         var v = "";
@@ -1370,8 +1405,49 @@ var fU = {
         return (val == undefined || val == '0' || val == '' ? epval : val);
     },
 
+    // Usato per le date nelle stringhe
+    "DateToLocalDateString": function (cDate, localeString = "it-IT") {
+        var cNewDate = new Date(cDate);
+        return cNewDate.toLocaleString(localeString, { hour12: false, month: "2-digit", day: "2-digit", year: "numeric" });
+    },
+
+    // aggiunge 0 d'avvanti ai numeri da 1 a 9
+    "padTo2Digits": function (num) {
+        return num.toString().padStart(2, '0');
+    },
+
+    // formatta le date a dd/mm/yyyy
+    "formatDateDDMMYYYY": function (date) {
+        if (typeof date == 'string') {
+            date = new Date(date);
+        }
+        return [
+            this.padTo2Digits(date.getDate()),
+            this.padTo2Digits(date.getMonth() + 1),
+            date.getFullYear(),
+        ].join('/');
+    },
+
+    // Usato per mandare le stringhe di tipo data al server
+    "LocalDateStringToDate": function (cDate) {
+        if (!cDate) return cDate;
+        //console.log(cDate.split("/").reverse().join("-"));
+        var cNewDate = new Date(cDate.split("/").reverse().join("-"));
+        //console.log(cNewDate.toISOString());
+        return cNewDate.toISOString().split("T")[0];
+    },
+
+    // Per la conversione delle date dal formato YYY-MM-DDTHH:mm:ss al formato canadese en-CA accettato dai controlli di tipo date
+    "ToStandardDate": function (cDate) {
+        if (!cDate) return cDate;
+        //console.log("cDate in ToStandardDate", cDate);
+        var cNewDate = new Date(cDate);
+        return cNewDate.toLocaleDateString("en-CA");
+    },
+
     // Formatta la data
     "ToDate": function (sDate) {
+        /*        console.log("sDate", sDate);*/
         // Se è stato 
         r = "";
         //Testa il browser
@@ -1475,37 +1551,56 @@ var fU = {
         }
     },
 
+    //"DateToSql": function (sDate) {
+    //    var g = '';
+    //    var m = '';
+    //    var a = '';
+    //    var r;
+
+    //    r = sDate.replace("-", "").replace("-", "");
+    //    r = r.replace("/", "").replace("/", "");
+
+    //    //Testa il browser
+    //    switch (oApp.BrowserType) {
+    //        case enumBrowser.Explorer:
+    //            //Explorer in italiano è l'unico che ha bisogno della data "girata"
+    //            switch (navigator.language.substr(0, 2).toLowerCase()) {
+    //                case "it":
+    //                    g = r.substr(0, 2);
+    //                    m = r.substr(2, 2);
+    //                    a = r.substr(4, 8);
+    //                    break;
+    //                default:
+    //                    m = r.substr(0, 2);
+    //                    g = r.substr(2, 2);
+    //                    a = r.substr(4, 8);
+    //                    break;
+    //            }
+    //            r = a + m + g;
+    //            break;
+    //        default:
+    //            break;
+    //    }
+    //    return r;
+    //},
+
+    // Restituisce una stringa nel formato YYYYMMDD HH:MM
+    "DateTimeToSql": function (sDate) {
+        var date = null;
+
+        if (typeof sDate === 'string' && sDate != '') date = new Date(sDate);
+        else return null;
+
+        return date.getFullYear().toString().concat('0'.concat(date.getMonth() + 1).slice(-(2)), '0'.concat(date.getDate()).slice(-(2)), ' ', '0'.concat(date.getHours()).slice(-(2)), ':', '0'.concat(date.getMinutes()).slice(-(2)));
+    },
+    // Restituisce una stringa nel formato YYYYMMDD
     "DateToSql": function (sDate) {
-        var g = '';
-        var m = '';
-        var a = '';
-        var r;
+        var date = null;
 
-        r = sDate.replace("-", "").replace("-", "");
-        r = r.replace("/", "").replace("/", "");
+        if (typeof sDate === 'string' && sDate != '') date = new Date(sDate);
+        else return null;
 
-        //Testa il browser
-        switch (oApp.BrowserType) {
-            case enumBrowser.Explorer:
-                //Explorer in italiano è l'unico che ha bisogno della data "girata"
-                switch (navigator.language.substr(0, 2).toLowerCase()) {
-                    case "it":
-                        g = r.substr(0, 2);
-                        m = r.substr(2, 2);
-                        a = r.substr(4, 8);
-                        break;
-                    default:
-                        m = r.substr(0, 2);
-                        g = r.substr(2, 2);
-                        a = r.substr(4, 8);
-                        break;
-                }
-                r = a + m + g;
-                break;
-            default:
-                break;
-        }
-        return r;
+        return date.getFullYear().toString().concat('0'.concat(date.getMonth() + 1).slice(-(2)), '0'.concat(date.getDate()).slice(-(2)));
     },
 
     // Restituisce true se il valore passato alla funzione è null
@@ -1653,32 +1748,22 @@ var fU = {
     },
 
     //Restituisce sempre un valore int32
-    "ToInt32": function (val) {
-        var r = 0;
-        if (!this.IsEmpty(val)) {
-            r = parseInt(val);
-        }
-        return r;
+    "ToInt32": function (val, def) {
+        var number = parseInt(val);
+        return Number.isNaN(number) || this.IsEmpty(val)
+            ? (def ? def : 0)
+            : number;
     },
 
-    "ToDecimal": function (val) {
-        var r = 0;
-        if (!this.IsEmpty(val)) {
-            //cambia la virgola in punto
-            val = val.replace(",", ".");
-            r = parseFloat(val);
-        }
-        if (!this.IsEmpty(val)) {
-        }
-        return r;
+    "ToDecimal": function (val, def) {
+        var number = Number(val.replace(',', '.'));
+        return Number.isNaN(number) || this.IsEmpty(val)
+            ? (def ? def : 0)
+            : number;
     },
     // Restituisce la lunghezza del valore passato come parametro
     "LenghtOf": function (val) {
-        var r = 0;
-        if (val != null) {
-            r = val.length;
-        }
-        return r;
+        return val ? val.length : 0;
     },
 
     // Copia val1 in val2
@@ -1915,6 +2000,16 @@ function ActivePage() {
     return $('#' + oPrg.ActivePageId);
 }
 
+function ElementByDataKey(dataKey = "", options = {}) {
+    //element: null, onActivePage: null
+    var element = options && options.element || "*";
+    var onActivePage = options && options.onActivePage || true;
+
+    if (onActivePage) return ActivePage().find(element + "[data-key='" + dataKey + "']");
+
+    return $(element + "[data-key='" + dataKey + "']");
+}
+
 function ActivePageDOM() {
     return document.getElementById(oPrg.ActivePageId);
 }
@@ -2069,4 +2164,8 @@ $(document).ready(function () {
 
 $.fn.setData = function (key, variable) {
     $(this).attr(key, variable).trigger('datachange', key);
+}
+
+$.fn.setVal = function (value) {
+    $(this).val(value).change();
 }

@@ -1,0 +1,121 @@
+﻿.tr-LottoCommessa.hide, .LottoCommessa.hide {
+    display: none !important;
+    visibility: collapse;
+    border-collapse: collapse;
+}
+
+/*.qta {
+    margin-top: 10px;
+    text-align: center;
+    display: inline-block;
+    width: 60px;
+}*/
+
+/** Switch
+ -------------------------------------*/
+
+.switch-container {
+    position: relative;
+    top: 0;
+    right: 0;
+    bottom: 0;
+    left: 0;
+    /*height: 40px;*/
+    /*margin: auto;
+    text-align: center;*/
+}
+
+
+    .switch-container .switch input {
+        position: absolute;
+        opacity: 0;
+    }
+
+    /**
+ * 1. Adjust this to size
+ */
+
+    .switch-container .switch {
+        display: inline-block;
+        font-size: 20px; /* 1 */
+        height: 1em;
+        width: 2em;
+        background: #BDB9A6;
+        border-radius: 1em;
+    }
+
+        .switch-container .switch.chacked {
+            background-color: #5199ff;
+        }
+
+        .switch-container .switch div {
+            height: 1em;
+            width: 1em;
+            border-radius: 1em;
+            background: #FFF;
+            box-shadow: 0 0.1em 0.3em rgba(0,0,0,0.3);
+            -webkit-transition: all 300ms;
+            -moz-transition: all 300ms;
+            transition: all 300ms;
+        }
+
+        .switch-container .switch input:checked + div {
+            -webkit-transform: translate3d(100%, 0, 0);
+            -moz-transform: translate3d(100%, 0, 0);
+            transform: translate3d(100%, 0, 0);
+        }
+
+
+/** End Switch
+ -------------------------------------*/
+
+.clearfix {
+    clear: both;
+    overflow: auto;
+}
+
+.hide {
+    display: none;
+}
+
+.pgMGDisp-Cruscotto .contenitore-totali{
+
+}
+
+.pgMGDisp-Cruscotto .totali {
+    display: grid;
+    grid-template-columns: 50px 200px;
+    justify-content: end;
+}
+
+.pgMGDisp-Cruscotto .totale {
+    font-weight: bold;
+}
+
+.pgMGDisp-Cruscotto .dettaglio {
+    display: grid;
+    grid-template-rows: 25px 25px 25px;
+    justify-content: end;
+    align-content: space-around;
+}
+
+    .pgMGDisp-Cruscotto .dettaglio span {
+        display: inline-block;
+    }
+
+        .pgMGDisp-Cruscotto .dettaglio span.label {
+            text-align: right;
+            width: 45px;
+        }
+
+        .pgMGDisp-Cruscotto .dettaglio span.valoreTot {
+            text-align: right;
+            width: 75px;
+        }
+
+        .pgMGDisp-Cruscotto .dettaglio span.um {
+            text-align: left;
+            width: 25px;
+        }
+
+/* end totali */

@@ -5,34 +5,27 @@
 //-----------------------------------
 
 
+//$(document).ready(function () {
+//    registerBrowserDataSession(); // in Global.js
+//});
+
 function Ajax_GetDitta() {
-
-    Params = JSON.stringify({
-        Terminale: $("#Terminale").text(),
-        Cd_Operatore: $("#Cd_Operatore").val(),
-        Password: $("#Password").val()
-    });
-
-    $.ajax({
-        url: "Login.aspx/GetDitta",
-        async: false,
-        data: Params,
-        type: "POST",
-        dataType: "json",
-        contentType: "application/json; charset=utf-8",
-        success: function (mydata) {
+    ajaxCallSync(
+        "/GetDitta",
+        {
+            Terminale: $("#Terminale").text(),
+            Cd_Operatore: $("#Cd_Operatore").val(),
+            Password: $("#Password").val()
+        },
+        function (mydata) {
             var myditta = $.parseJSON(mydata.d);
             if (!fU.IsEmpty(myditta)) {
                 $("#Ditta").text("Ditta: " + myditta);
             }
             else
                 alert("Errore nella connessione con il server. Verificare la stringa di connessione.");
-        },
-        error: function (XMLHttpRequest, textStatus, errorThrown) {
-            //Ajax_ErrOut(XMLHttpRequest, textStatus, errorThrown);
-            PopupMsg_Show("Errore", "ERR", "Errore nella connessione con il server. Verificare la stringa di connessione.");
         }
-    }); //Ajax
+    );
 }
 
 
@@ -41,32 +34,27 @@ function Ajax_LoginValidate() {
 
     //Gestione del "Ricordami"
     if ($('#Ricordami').is(':checked')) {
-        localStorage.Cd_Operatore = $('#Cd_Operatore').val();
-        localStorage.Password = $('#Password').val();
-        localStorage.Ricordami = $('#Ricordami').val();
+        oLocalStorage.set("Cd_Operatore", $('#Cd_Operatore').val());
+        oLocalStorage.set("Password", $('#Password').val());
+        oLocalStorage.set("Ricordami", $('#Ricordami').val());
     }
     else {
-        localStorage.Cd_Operatore = '';
-        localStorage.Password = '';
-        localStorage.Ricordami = '';
+        oLocalStorage.set("Cd_Operatore", "");
+        oLocalStorage.set("Password", "");
+        oLocalStorage.set("Ricordami", "");
+
     }
 
     $(".msg").text("");
 
-    Params = JSON.stringify({
-        Terminale: $("#Terminale").text(),
-        Cd_Operatore: $("#Cd_Operatore").val(),
-        Password: $("#Password").val()
-    });
-
-    $.ajax({
-        url: "Login.aspx/LoginValidate",
-        async: false,
-        data: Params,
-        type: "POST",
-        dataType: "json",
-        contentType: "application/json; charset=utf-8",
-        success: function (mydata) {
+    ajaxCallSync(
+        "/LoginValidate",
+        {
+            Terminale: $("#Terminale").text(),
+            Cd_Operatore: $("#Cd_Operatore").val(),
+            Password: $("#Password").val()
+        },
+        function (mydata) {
             if (!fU.IsNull(mydata.d)) {
                 var res = $.parseJSON(mydata.d);
                 if (res[0].Result == 1) {
@@ -115,11 +103,8 @@ function Ajax_LoginValidate() {
             }
             else
                 $(".msg").text("Errore sconosciuto... contattare il fornitore di sistema!!");
-        },
-        error: function (XMLHttpRequest, textStatus, errorThrown) {
-            Ajax_ErrOut(XMLHttpRequest, textStatus, errorThrown);
         }
-    }); //Ajax
+    );
 }
 
 function Set_xMOImpostazioni(r) {
@@ -160,7 +145,7 @@ function Ajax_LoginValidate_Success() {
     //if (!Ajax_xmovs_ARMisura()) return;
 
     // Memorizzo l'oggetto oApp
-    fU.SetSession(oApp);
+    oSessionStorage.set("oApp", oApp);
 
     // Vado al main
     location.assign("Moovi.aspx");

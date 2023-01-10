@@ -161,8 +161,8 @@ function Ajax_xmosp_xMOIN_Save() {
 function Ajax_xmofn_xMOGiacenza_IN_SelAr() {
 
     // Nascondo il messaggio ed elimino le righe della lista
-    $("#pgINRig .mo-msg-argiac").hide();
-    $("#pgINRig .tr-rig-argiac").remove();
+    ActivePage().find(".mo-msg-argiac").hide();
+    ActivePage().find(".tr-rig-argiac").remove();
     var out = false;
 
     Params = JSON.stringify({
@@ -170,10 +170,10 @@ function Ajax_xmofn_xMOGiacenza_IN_SelAr() {
         Cd_Operatore: oApp.Cd_Operatore,
         Cd_MGEsercizio: oPrg.IN.drIN.Cd_MGEsercizio,
         Cd_MG: oPrg.IN.drIN.Cd_MG,
-        Cd_AR: fU.ToString($("#pgINRig .div-detail input[name='Cd_AR']").val()),
-        Cd_MGUbicazione: fU.ToString($("#pgINRig .div-detail input[name='Cd_MGUbicazione']").val()),
-        Cd_ARLotto: fU.ToString($("#pgINRig .div-detail input[name='Cd_ARLotto']").val()),
-        Cd_DOSottoCommessa: fU.ToString($("#pgINRig .div-detail input[name='Cd_DOSottoCommessa']").val()),
+        Cd_AR: fU.ToString(ActivePage().find(".div-detail input[name='Cd_AR']").val()),
+        Cd_MGUbicazione: fU.ToString(ActivePage().find(".div-detail input[name='Cd_MGUbicazione']").val()),
+        Cd_ARLotto: fU.ToString(ActivePage().find(".div-detail input[name='Cd_ARLotto']").val()),
+        Cd_DOSottoCommessa: fU.ToString(ActivePage().find(".div-detail input[name='Cd_DOSottoCommessa']").val()),
     });
 
     $.ajax({
@@ -190,7 +190,7 @@ function Ajax_xmofn_xMOGiacenza_IN_SelAr() {
                 xMOGiacenza_Load(dt);
             }
             else {
-                $("#pgINRig .mo-msg-argiac").show();
+                ActivePage().find(".mo-msg-argiac").show();
             }
         },
         error: function (XMLHttpRequest, textStatus, errorThrown) {
@@ -247,8 +247,8 @@ function Ajax_xmosp_xMOINRig_AR() {
 function Ajax_xmofn_xMOINRig_AR(Id_xMOINRig) {
 
     // svuoto la lista degli articoli
-    $("#pgINRig .tbl-arlist .tr-inar").remove();
-    $("#pgINRig .mo-msg-no-ar").hide();
+    ActivePage().find(".tbl-arlist .tr-inar").remove();
+    ActivePage().find(".mo-msg-no-ar").hide();
 
     var out = false;
 
@@ -283,7 +283,7 @@ function Ajax_xmofn_xMOINRig_AR(Id_xMOINRig) {
                 out = true;
             }
             else {
-                $("#pgINRig .mo-msg-no-ar").show();
+                ActivePage().find(".mo-msg-no-ar").show();
             }
         },
         error: function (XMLHttpRequest, textStatus, errorThrown) {
@@ -297,11 +297,11 @@ function Ajax_xmofn_xMOINRig_AR(Id_xMOINRig) {
 function pgINRig_AR_Load(dt) {
     //Verifico che il dt abbia delle righe
     if (dt.length > 0) {
-        var tr = $("#pgINRig .tbl-arlist .template").clone().removeClass("template").removeAttr("style").addClass("tr-inar");
-        var trdesc = $("#pgINRig .template_ARDesc").clone().removeAttr("style").addClass("tr-inar tr-ardesc");
+        var tr = ActivePage().find(".tbl-arlist .template").clone().removeClass("template").removeAttr("style").addClass("tr-inar");
+        var trdesc = ActivePage().find(".template_ARDesc").clone().removeAttr("style").addClass("tr-inar tr-ardesc");
         for (var i = 0; i < dt.length; i++) {
-            $("#pgINRig .tbl-arlist").append(pgINRig_AR_Template(tr.clone(), dt[i], i));
-            $("#pgINRig .tbl-arlist").append(ARDesc_Template(trdesc.clone(), dt[i].Cd_AR, dt[i].AR_Descrizione));
+            ActivePage().find(".tbl-arlist").append(pgINRig_AR_Template(tr.clone(), dt[i], i));
+            ActivePage().find(".tbl-arlist").append(ARDesc_Template(trdesc.clone(), dt[i].Cd_AR, dt[i].AR_Descrizione));
         }
     }
 }
@@ -336,94 +336,92 @@ function Detail_pgINRig_Template_Edit() {
     // Riga dell'id corrente
     var dr = oPrg.IN.dtxMOINRig[oPrg.IN.idx];
 
-    var p = $("#pgINRig .div-in-ar");
-
     // Nascondo il div-in-ar-new e mostro div-in-ar
-    $("#pgINRig .div-in-ar-new").hide();
-    $("#pgINRig .div-in-ar").show();
+    ActivePage().find(".div-in-ar-new").hide();
+    ActivePage().find(".div-in-ar").show();
 
     // Codice articolo
-    $("#pgINRig .div-detail input[name='Cd_AR']").val(dr.Cd_AR);
+    ActivePage().find(".div-detail input[name='Cd_AR']").val(dr.Cd_AR);
     // Inserisco i valori dell'AR nel detail 
-    $(p).find(".Cd_AR").text(dr.Cd_AR);
-    !fU.IsEmpty(dr.AR_Descrizione) ? $(p).find(".Cd_AR").append(' - ' + fU.ToString(dr.AR_Descrizione)) : "";
-    !fU.IsEmpty(dr.Cd_ARLotto) ? $(p).find(".Cd_ARLotto").html('&nbsp;LOTTO: ' + fU.ToString(dr.Cd_ARLotto)) : $(p).find(".Cd_ARLotto").text("");
-    !fU.IsEmpty(dr.Cd_MGUbicazione) ? $(p).find(".Cd_MGUbicazione").html('&nbsp;UBI: ' + fU.ToString(dr.Cd_MGUbicazione)) : $(p).find(".Cd_MGUbicazione").text("");
-    !fU.IsEmpty(dr.Cd_DOSottoCommessa) ? $(p).find(".Cd_DOSottoCommessa").html('&nbsp;COMM: ' + fU.ToString(dr.Cd_DOSottoCommessa)) : $(p).find(".Cd_DOSottoCommessa").text("");
-    $(p).find(".Quantita").text("Giacenza Contabile: " + dr.Quantita);
+    ActivePage().find(".Cd_AR").text(dr.Cd_AR);
+    !fU.IsEmpty(dr.AR_Descrizione) ? ActivePage().find(".Cd_AR").append(' - ' + fU.ToString(dr.AR_Descrizione)) : "";
+    !fU.IsEmpty(dr.Cd_ARLotto) ? ActivePage().find(".Cd_ARLotto").html('&nbsp;LOTTO: ' + fU.ToString(dr.Cd_ARLotto)) : ActivePage().find(".Cd_ARLotto").text("");
+    !fU.IsEmpty(dr.Cd_MGUbicazione) ? ActivePage().find(".Cd_MGUbicazione").html('&nbsp;UBI: ' + fU.ToString(dr.Cd_MGUbicazione)) : ActivePage().find(".Cd_MGUbicazione").text("");
+    !fU.IsEmpty(dr.Cd_DOSottoCommessa) ? ActivePage().find(".Cd_DOSottoCommessa").html('&nbsp;COMM: ' + fU.ToString(dr.Cd_DOSottoCommessa)) : ActivePage().find(".Cd_DOSottoCommessa").text("");
+    ActivePage().find(".Quantita").text("Giacenza Contabile: " + dr.Quantita);
 
-    $(p).find(".QtaRilevata").text(fU.ToString(dr.QtaRilevata));
+    ActivePage().find(".QtaRilevata").text(fU.ToString(dr.QtaRilevata));
 
     // Mostro la x per la chiusura del div-detail nel caso di IN MASSIVO
-    fU.ShowIf($("#pgINRig .mo-intestazione span"), oPrg.IN.Tipo == 'M' ? true : false);
+    fU.ShowIf(ActivePage().find(".mo-intestazione span"), oPrg.IN.Tipo == 'M' ? true : false);
 
     // Mostro i bottoni per il salvataggio nel caso di IN MASSIVO
-    fU.ShowIf($("#pgINRig .btn-inm"), oPrg.IN.Tipo == 'M' ? true : false);
+    fU.ShowIf(ActivePage().find(".btn-inm"), oPrg.IN.Tipo == 'M' ? true : false);
 
     // Mostro i bottoni per il salvataggio nel caso di IN PUNTUALE
-    fU.ShowIf($("#pgINRig .btn-inp"), oPrg.IN.Tipo == 'P' ? true : false);
+    fU.ShowIf(ActivePage().find(".btn-inp"), oPrg.IN.Tipo == 'P' ? true : false);
 
     // Mostro il div per lo slideshow nel caso di IN MASSIVO
-    fU.ShowIf($("#pgINRig .div-sequenziale"), oPrg.IN.Tipo == 'M' ? true : false);
+    fU.ShowIf(ActivePage().find(".div-sequenziale"), oPrg.IN.Tipo == 'M' ? true : false);
 
     //Carica sempre l'UM
-    ARARMisura_Set(dr.Cd_ARMisura);
+    ActivePage().find("select[name='Cd_ARMisura']").attr("um2set", dr.Cd_ARMisura);
 
     switch (oPrg.IN.Tipo) {
         case 'M':
             oPrg.IN.Id_xMOINRig = dr.Id_xMOINRig;
             // Visualizzo il numero della riga corrente rispetto al totale 
-            $("#pgINRig .div-detail").find(".NRow").text((oPrg.IN.dtxMOINRig.indexOf(dr) + 1) + "/" + oPrg.IN.dtxMOINRig.length).show();
+            ActivePage().find(".div-detail").find(".NRow").text((oPrg.IN.dtxMOINRig.indexOf(dr) + 1) + "/" + oPrg.IN.dtxMOINRig.length).show();
 
-            SlideShow_Attiva($("#pgINRig .ck-sequenziale"));
+            SlideShow_Attiva(ActivePage().find(".ck-sequenziale"));
             break;
     }
 
-    $("#pgINRig .div-grid").hide();
-    $("#pgINRig .div-detail").show();
+    ActivePage().find(".div-grid").hide();
+    ActivePage().find(".div-detail").show();
 
-    $(p).find("input[name='QtaRilevata']").val("");
-    $(p).find("input[name='QtaRilevata']").focus().select();
+    ActivePage().find("input[name='QtaRilevata']").val("");
+    ActivePage().find("input[name='QtaRilevata']").focus().select();
 }
 
 // Attiva e disattiva lo scorrimento di AR dal detail
 function SlideShow_Attiva(ck) {
     if (fU.IsChecked(ck)) {
-        $("#pgINRig .div-detail .btn-slideshow").show();
+        ActivePage().find(".div-detail .btn-slideshow").show();
     } else {
-        $("#pgINRig .div-detail .btn-slideshow").hide();
+        ActivePage().find(".div-detail .btn-slideshow").hide();
     }
 
-    $("#pgINRig .div-detail input[name='QtaRilevata']").focus();
+    ActivePage().find(".div-detail input[name='QtaRilevata']").focus();
 }
 
 // Gestisce il click del bottone addnew nella lista
 function Detail_pgINRig_Load() {
 
     oPrg.IN.idx = null;
-    var p = $("#pgINRig .div-in-ar-new");
+    var p = ActivePage().find(".div-in-ar-new");
 
     // Pulisco i campi 
-    $(p).find(".lbl").text("");
+    ActivePage().find(".lbl").text("");
     // Pulisco la lista delle giacenze
-    $(p).find(".tbl-argiac tr.tr-rig-argiac").remove();
+    ActivePage().find(".tbl-argiac tr.tr-rig-argiac").remove();
 
     // Attenzione gli input vanno svuotati solo se non disabilitati (ad esempio l'ubicazione potrebbe provenire dalla testa)
-    $(p).find("input:enabled").val("");
+    ActivePage().find("input:enabled").val("");
 
     // Nascondo il div sequenziale
-    $("#pgINRig .div-sequenziale").hide();
+    ActivePage().find(".div-sequenziale").hide();
 
 
     // Mostro la parte del detail per la modalita addnew
-    $("#pgINRig .div-in-ar").hide();
-    $("#pgINRig .div-in-ar-new").show();
+    ActivePage().find(".div-in-ar").hide();
+    ActivePage().find(".div-in-ar-new").show();
 
     if (oPrg.IN.Tipo == 'P') {
         // Nascondo la x 
-        $("#pgINRig .div-detail .mo-intestazione span").hide();
+        ActivePage().find(".div-detail .mo-intestazione span").hide();
         // Nascondo il check sequenziale 
-        $("#pgINRig .div-sequenziale").hide();
+        ActivePage().find(".div-sequenziale").hide();
     }
 
     // Nascondo la section grid
@@ -458,7 +456,7 @@ function Detail_pgINRig_AR_New() {
 // Gestione del pulsante ok e degli eventi INVIO nel campo QtaRilevata in  base alle modalità attive
 function Detail_pgINRig_AR_Confirm() {
 
-    var q = $("#pgINRig .div-detail input[name='QtaRilevata']");
+    var q = ActivePage().find(".div-detail input[name='QtaRilevata']");
 
     if ($.isNumeric(q.val().replace(',', '.'))) {
 
@@ -466,7 +464,7 @@ function Detail_pgINRig_AR_Confirm() {
         q.attr("disabled", true);
 
         var qta = parseFloat(q.val().replace(',', '.'));
-        var sumit = $("#pgINRig .mod-somma").hasClass("w3-text-green");
+        var sumit = ActivePage().find(".mod-somma").hasClass("w3-text-green");
         var qtaril;
 
         // Somma o aggionra la qta rilevata in base alla mod somma sia sul server che sul client
@@ -476,13 +474,13 @@ function Detail_pgINRig_AR_Confirm() {
             case 'M':
                 Ajax_xmosp_xMOINRig_AR_Save(qtaril);
                 // Summ == false e sequenziale == true --> va al successivo
-                if (!sumit && fU.IsChecked($("#pgINRig .div-detail .ck-sequenziale"))) {
-                    $("#pgINRig .div-detail .in-next").click();
+                if (!sumit && fU.IsChecked(ActivePage().find(".div-detail .ck-sequenziale"))) {
+                    ActivePage().find(".div-detail .in-next").click();
                 }
                 // Summ == false e sequenziale == false --> mostro la griglia
-                if (!sumit && !fU.IsChecked($("#pgINRig .div-detail .ck-sequenziale"))) {
-                    $("#pgINRig .div-detail").hide();
-                    $("#pgINRig .div-grid").show();
+                if (!sumit && !fU.IsChecked(ActivePage().find(".div-detail .ck-sequenziale"))) {
+                    ActivePage().find(".div-detail").hide();
+                    ActivePage().find(".div-grid").show();
                 }
                 break;
         }
@@ -505,8 +503,8 @@ function pgINRig_AR_Add_New() {
             idx = oPrg.IN.dtxMOINRig.length - 1;
 
             //// Clono il tr template della tabella e append del tr senza ricaricare tutta la lista
-            //var tr = $("#pgINRig .template").clone().removeClass("template").removeAttr("style").addClass("tr-inar");
-            //$("#pgINRig table").append(pgINRig_AR_Template(tr, oPrg.IN.dtxMOINRig[idx], idx));
+            //var tr = ActivePage().find(".template").clone().removeClass("template").removeAttr("style").addClass("tr-inar");
+            //ActivePage().find("table").append(pgINRig_AR_Template(tr, oPrg.IN.dtxMOINRig[idx], idx));
         }
 
     }
@@ -520,10 +518,10 @@ function pgINRig_AR_Add_New() {
 // Cerca un AR nel dtxMOINRig
 function Find_AR_InTo_dtxMOINRIg() {
 
-    var Cd_AR = fU.ToStringNull($("#pgINRig .div-detail input[name='Cd_AR']").val());
-    var Cd_ARLotto = fU.ToStringNull($("#pgINRig .div-detail input[name='Cd_ARLotto']").val());
-    var Cd_MGUbicazione = fU.ToStringNull($("#pgINRig .div-detail input[name='Cd_MGUbicazione']").val());
-    var Cd_DOSottoCommessa = fU.ToStringNull($("#pgINRig .div-detail input[name='Cd_DOSottoCommessa']").val());
+    var Cd_AR = fU.ToStringNull(ActivePage().find(".div-detail input[name='Cd_AR']").val());
+    var Cd_ARLotto = fU.ToStringNull(ActivePage().find(".div-detail input[name='Cd_ARLotto']").val());
+    var Cd_MGUbicazione = fU.ToStringNull(ActivePage().find(".div-detail input[name='Cd_MGUbicazione']").val());
+    var Cd_DOSottoCommessa = fU.ToStringNull(ActivePage().find(".div-detail input[name='Cd_DOSottoCommessa']").val());
 
     var ofind = null;
 
@@ -553,10 +551,10 @@ function Ajax_xmosp_xMOINRig_AR_Add() {
         Id_xMOIN: fU.ToInt32(oPrg.Id_xMOIN_Edit),
         Cd_MGEsercizio: oPrg.IN.drIN.Cd_MGEsercizio,
         Cd_MG: oPrg.IN.drIN.Cd_MG,
-        Cd_AR: $("#pgINRig .div-detail input[name='Cd_AR']").val(),
-        Cd_MGUbicazione: fU.ToString($("#pgINRig .div-detail input[name='Cd_MGUbicazione']").val()),
-        Cd_ARLotto: $("#pgINRig .div-detail input[name='Cd_ARLotto']").val(),
-        Cd_DOSottoCommessa: $("#pgINRig .div-detail input[name='Cd_DOSottoCommessa']").val()
+        Cd_AR: ActivePage().find(".div-detail input[name='Cd_AR']").val(),
+        Cd_MGUbicazione: fU.ToString(ActivePage().find(".div-detail input[name='Cd_MGUbicazione']").val()),
+        Cd_ARLotto: ActivePage().find(".div-detail input[name='Cd_ARLotto']").val(),
+        Cd_DOSottoCommessa: ActivePage().find(".div-detail input[name='Cd_DOSottoCommessa']").val()
     });
 
     $.ajax({
@@ -596,10 +594,10 @@ function Ajax_xmofn_xMOGiacenza_IN() {
         Cd_Operatore: oApp.Cd_Operatore,
         Cd_MGEsercizio: oPrg.IN.drIN.Cd_MGEsercizio,
         Cd_MG: oPrg.IN.drIN.Cd_MG,
-        Cd_AR: $("#pgINRig input[name='Cd_AR']").val(),
+        Cd_AR: ActivePage().find("input[name='Cd_AR']").val(),
         Cd_MGUbicazione: oPrg.IN.drIN.Cd_MGUbicazione,
-        Cd_ARLotto: $("#pgINRig input[name='Cd_ARLotto']").val(),
-        Cd_DOSottoCommessa: $("#pgINRig input[name='Cd_DOSottoCommessa']").val(),
+        Cd_ARLotto: ActivePage().find("input[name='Cd_ARLotto']").val(),
+        Cd_DOSottoCommessa: ActivePage().find("input[name='Cd_DOSottoCommessa']").val(),
     });
 
     $.ajax({
@@ -635,7 +633,7 @@ function Detail_pgINRig_AR_Calcola(qta, sumit) {
     var dr = oPrg.IN.dtxMOINRig[oPrg.IN.idx];
 
     var fatt = 1;
-    fatt = parseFloat($("#pgINRig select[name='Cd_ARMisura'] :selected").attr("UMFatt"));
+    fatt = parseFloat(ActivePage().find("select[name='Cd_ARMisura'] :selected").attr("UMFatt"));
 
     //Sommo la quantità rilevata o la riassegno da zero
     qta = (sumit ? dr.QtaRilevata : 0) + (qta * fatt);
@@ -646,16 +644,16 @@ function Detail_pgINRig_AR_Calcola(qta, sumit) {
 
     // Assegna la quantità Rilevata alla tabella in caso di IN MASSIVO
     if (oPrg.IN.Tipo == 'M') {
-        var tr = $("#pgINRig .tr-inar[idx='" + oPrg.IN.idx + "']");
+        var tr = ActivePage().find(".tr-inar[idx='" + oPrg.IN.idx + "']");
         $(tr).find(".QtaRilevata").text(dr.QtaRilevata);
         $(tr).find(".QtaRettifica").text(dr.QtaRettifica);
     }
 
     //Assegna la quantità Rilevata all'interfaccia'
-    $("#pgINRig .div-detail .QtaRilevata").text(dr.QtaRilevata);
+    ActivePage().find(".div-detail .QtaRilevata").text(dr.QtaRilevata);
 
     // Reset del campo quantita del detail
-    $("#pgINRig .div-detail input[name='QtaRilevata']").val("");
+    ActivePage().find(".div-detail input[name='QtaRilevata']").val("");
 
     return dr.QtaRilevata;
 }
@@ -699,7 +697,7 @@ function Ajax_xmosp_xMOINRig_AR_Save(qtaril) {
 function Ajax_xmosp_xMOIN_MakeOne_MGMov(todo) {
 
     //Deve essere pieno il campo LABEL QtaRilevata e vuoto il testo QtaRilevata (l'operatore ha effettivamente confermato con invio)
-    if (!fU.IsEmpty(oPrg.IN.dtxMOINRig[oPrg.IN.idx].QtaRilevata) && fU.IsEmpty($("#pgINRig input[name='QtaRilevata']").val())) {
+    if (!fU.IsEmpty(oPrg.IN.dtxMOINRig[oPrg.IN.idx].QtaRilevata) && fU.IsEmpty(ActivePage().find("input[name='QtaRilevata']").val())) {
 
         var out = false;
 
@@ -710,10 +708,10 @@ function Ajax_xmosp_xMOIN_MakeOne_MGMov(todo) {
             Cd_MGEsercizio: oPrg.IN.drIN.Cd_MGEsercizio,
             DataOra: fU.DateToSql($("#pgIN input[name='DataOra']").val()),
             Cd_MG: oPrg.IN.drIN.Cd_MG,
-            Cd_MGUbicazione: $("#pgINRig input[name='Cd_MGUbicazione']").val(),//oPrg.IN.drIN.Cd_MGUbicazione,
-            Cd_ARLotto: $("#pgINRig input[name='Cd_ARLotto']").val(),
-            Cd_DOSottoCommessa: $("#pgINRig input[name='Cd_DOSottoCommessa']").val(),
-            Cd_AR: $("#pgINRig input[name='Cd_AR']").val(),
+            Cd_MGUbicazione: ActivePage().find("input[name='Cd_MGUbicazione']").val(),//oPrg.IN.drIN.Cd_MGUbicazione,
+            Cd_ARLotto: ActivePage().find("input[name='Cd_ARLotto']").val(),
+            Cd_DOSottoCommessa: ActivePage().find("input[name='Cd_DOSottoCommessa']").val(),
+            Cd_AR: ActivePage().find("input[name='Cd_AR']").val(),
             QtaRilevata: oPrg.IN.dtxMOINRig[oPrg.IN.idx].QtaRilevata
         });
 
@@ -743,11 +741,11 @@ function Ajax_xmosp_xMOIN_MakeOne_MGMov(todo) {
         return out;
     } else {
         //La quantità potrebbe non essere stata confermata: reimposto il focus sul campo
-        $("#pgINRig .div-qtaum").find(".msg").text("Confermare la quantità con invio prima di salvare");
+        ActivePage().find(".div-qtaum").find(".msg").text("Confermare la quantità con invio prima di salvare");
         setTimeout(function () {
-            $("#pgINRig .div-qtaum").find(".msg").text("");
+            ActivePage().find(".div-qtaum").find(".msg").text("");
         }, 2500);
-        $("#pgINRig input[name='QtaRilevata']").focus();
+        ActivePage().find("input[name='QtaRilevata']").focus();
     }
 }
 
@@ -758,7 +756,7 @@ function IN_SlideShow(n) {
     if (index > oPrg.IN.dtxMOINRig.length - 1) { index = 0; }
     if (index < 0) { index = oPrg.IN.dtxMOINRig.length - 1; }
 
-    $("#pgINRig tr[idx='" + index + "']").click();
+    ActivePage().find("tr[idx='" + index + "']").click();
 }
 
 // Elimina un inventario aperto
@@ -888,9 +886,9 @@ function Ajax_xmosp_xMOIN_Make_MGMov(btn, todo) {
 // Inserisce i dati della riga selezionata dalla tabella della giacenza dell'ar nei campi input del div-detail 
 function pgINRig_RigDataIntoInput(tr) {
 
-    var p = $("#pgINRig .div-detail");
+    var p = ActivePage().find(".div-detail");
 
-    $(p).find("input[name='Cd_DOSottoCommessa']").val($(tr).find(".argiac-dosottocommessa").text());
-    $(p).find("input[name='Cd_ARLotto']").val($(tr).find(".argiac-arlotto").text());
-    $(p).find("input[name='Cd_MGUbicazione']").val($(tr).find(".argiac-mgubicazione").text());
+    ActivePage().find("input[name='Cd_DOSottoCommessa']").val($(tr).find(".argiac-dosottocommessa").text());
+    ActivePage().find("input[name='Cd_ARLotto']").val($(tr).find(".argiac-arlotto").text());
+    ActivePage().find("input[name='Cd_MGUbicazione']").val($(tr).find(".argiac-mgubicazione").text());
 }

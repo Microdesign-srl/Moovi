@@ -9,6 +9,7 @@ function Barcode(dtBarcode) {
     this.CurrentBC = null;          // Barcode corrente selezionato
     this.CurrentStr = null;         // Stringa corrente da interpretare
     this.Result = null;             // Lettura interpretata
+    this.Results = [];              // Letture interpretata
     this.ResultList = null          // Array contenente tutte le stringhe interpretate dalla classe
     this.ResultIsValid = false;     // True se sono riuscito ad interpretare la stringa
     this.DetailOn = false;
@@ -18,6 +19,7 @@ function Barcode(dtBarcode) {
 // Pulisce tutte le variabili globali della classe
 Barcode.prototype.Clear = function () {
     this.Result = null;
+    this.Results = [];
     this.CurrentBC = null;
     this.CurrentStr = null;
     this.ResultList = [];
@@ -25,22 +27,14 @@ Barcode.prototype.Clear = function () {
     this.DetailOn = false;
 }
 
-// Assegna il risultato corrente
-Barcode.prototype.AssignFrom = function (Id_ResultList) {
-    //la funzione checkresult verifica il barcode specificato da "Id_ResultList" e lo assegna come corrente
-    checkresult(this, Id_ResultList);
-}
-
 //Gestione UI dei barcode ------------------------------
 Barcode.prototype.Detail_Open = function () {
-    if (this.CurrentBC.Detail) {
+    if (this.CurrentBC && this.CurrentBC.Detail) {
         //Imposta la descrizione corrente del Bc
         $("#DetailBarcode .barcode").find("label").text(this.CurrentBC.Descrizione);
         $("#DetailBarcode").show();
         $("#DetailBarcode input").focus();
         this.DetailOn = true;
-    } else {
-        PopupMsg_Show("Errore", "B1", "Nessun Barcode definito nel programma corrente. [xCd_xMOProgramma=" + fU.ToString(oPrg.dtDO.xCd_xMOProgramma) + "]");
     }
 }
 
@@ -116,9 +110,12 @@ Barcode.prototype.SetCurrentBC = function (key) {
     this.CurrentBC = this.BarcodeList[key];
 }
 
+
 // Interpreta la stringa (str) nel formato richiesto (key)
 Barcode.prototype.Read = function (str) {
-    var res
+    var res;
+
+    this.Results = [];
 
     // Memorizzo la lettura corrente
     this.CurrentStr = str;
@@ -134,9 +131,9 @@ Barcode.prototype.Read = function (str) {
             var o = this.Result;
             //Normalizza i dati
             $.each(o, function (key, val) {
-                switch (key.toLowerCase()) {
+                switch (true) {
                     // Per il GS1 vanno gestite le date
-                    case "datascadenza":
+                    case key.toLowerCase() == "datascadenza":
                         if (oApp.BrowserType == enumBrowser.Chrome) {
                             // Aggiunge le prime due cifre dell'anno corrente alla data (string data completa è lunga 8)
                             if (val.length == 6) {
@@ -156,6 +153,7 @@ Barcode.prototype.Read = function (str) {
             break;
         case STD:
             res = this.decodestr(this.CurrentStr);
+            this.Results.push(this.Result);
             break;
         default:
             res = false; // non so che devo fare
@@ -173,7 +171,6 @@ Barcode.prototype.Read_GS1 = function () {
 
     // ripulisco la resultlist
     this.ResultList = [];
-
     var ValidResultList = [];
 
     // Interpreto la stringa 
@@ -188,47 +185,53 @@ Barcode.prototype.Read_GS1 = function () {
     // Sostituisco ResultList con ValidResultList
     this.ResultList = ValidResultList;
 
-    //verifico il primo barcode interpretato (lo zeresimo)
-    return this.ResultIsValid = checkresult(this, 0);
+    this.decodeResults();
+
+    return this.ResultIsValid = checkresult(this);
 }
+
 
 Barcode.prototype.Read_SSCC = function () {
 
+    var struttura = this.CurrentBC.Struttura;
+
     this.ResultIsValid = false;
 
+    //Toglie i caratteri iniziali se presenti
     if (this.CurrentStr.substr(0, 2) == "00") {
         this.ResultIsValid = true;
 
         this.CurrentStr = this.CurrentStr.substr(2);
     }
+    //Cancella i caratteri eccedenti
+    if (struttura.hasOwnProperty("X00")) {
+        this.CurrentStr = this.CurrentStr.substr(0, struttura.X00.Len[1]);
+    }
+
+    // DECOMMENTARE QUANDO SI GESTIRà L'SSCC COME GS1 E STD
+    // this.Results.push(this.CurrentStr);
 
     return this.ResultIsValid;
 }
 
 Barcode.prototype.decodestr = function (str) {
-    var ar = [];
-    var x = {};
     this.Result = [];
     var struttura = this.CurrentBC.Struttura;
 
-    $.each(struttura, function (key, val) {
-        ar[val.Idx - 1] = { 'Column': val.Column, 'Len': val.Len };
+    var tmp = str;
+    var result = {};
+
+    Object.keys(struttura).forEach(function (key) {
+        var ai_len = struttura[key].AI ? struttura[key].AI.length : 0;
+        var len = struttura[key].Len[0];
+        result[struttura[key].Column] = tmp.substr(ai_len, len);
+        tmp = tmp.substr(len + ai_len);
     });
 
-    for (var i = 0; i < ar.length; i++) {
-        obj = ar[i];
-        x[obj.Column] = str.substr(0, obj.Len[0]);
-        str = str.substr(obj.Len[0]);
-    }
-
-    this.Result = x;
-
+    this.Result = result;
     this.ResultIsValid = true;
-
     return true;
-
 }
-
 
 /*
  * Interpreta il GS1 in base alla struttura
@@ -250,7 +253,8 @@ Barcode.prototype.decode = function (str, path, res, struct) {
     // find next AI code
     for (
         i = 0, ai = void (0);
-        i < str.length && (ai = (struct[code = str.substr(0, i)] != undefined ? struct[code = str.substr(0, i)].Len : undefined)) === undefined;
+        // PER EVITARE ERRORI DI CODIFICA JSON VIENE VERIFICATO COME XAI --> in code non viene memorizzata la X
+        i < str.length && (ai = (struct['X' + str.substr(0, i)] != undefined ? struct['X' + (code = str.substr(0, i))].Len : undefined)) === undefined;
         i++
     ) { }
 
@@ -264,6 +268,11 @@ Barcode.prototype.decode = function (str, path, res, struct) {
                 this.decode(str.substr(i + j), path + '(' + code + ')' + str.substr(i, j), res, struct);
             }
         }
+        //} else {
+        //    var key = Object.keys(struct)[0];
+        //    var fakeAI = key.replace('X', '');
+        //    struct[key].AI = fakeAI;
+        //    res.push("".concat('(', fakeAI, ')', str));
     }
 }
 
@@ -278,7 +287,8 @@ Barcode.prototype.isvalid = function (res) {
 
     $.each(s, function (r, i) {
         //[(]10[)]
-        var exp = res.match(new RegExp("[(]" + r + "[)]", "g"));
+        //console.log("[(]" + r.replace("X", "") + "[)]");
+        var exp = res.match(new RegExp("[(]" + r.replace("X", "") + "[)]", "g"));
         // Non trovato
         if (exp == null || exp.length != 1) {
             ret = false;
@@ -290,32 +300,56 @@ Barcode.prototype.isvalid = function (res) {
 }
 
 
+Barcode.prototype.decodeResults = function () {
+    var self = this;
+    this.Results = this.ResultList.map(function (result) {
+        return self.decodeBarcode(result)
+    });
+}
 
-//function isValido(res, struttura) {
-//    var ret = true;
+Barcode.prototype.decodeBarcode = function (barcode) {
+    var self = this;
+    if (!barcode) return undefined;
+    // Risultato della decodifica
+    var result = {};
+    // Struttura del barcode nel formato AI - Column
+    var structure = [];
+    Object.keys(self.CurrentBC.Struttura).forEach(function (key) {
+        structure.push({
+            AI: key.replace('X', ''),
+            Column: self.CurrentBC.Struttura[key].Column
+        })
+    });
+    // Per ogni elemento della struttura
+    // Memorizzo gli indici di inizio e fine (elemento successivo) nella stringa del risultato del BC
+    // Aggiungo la property all'oggetto di ritorno
+    structure.forEach(function (currentItem, index, array) {
+        //var nextItem = array[index + 1];
+        //var startIndex = barcode.indexOf("".concat("(", currentItem.AI, ")"));
+        //var length = nextItem ? barcode.indexOf("".concat("(", nextItem.AI, ")")) - startIndex : undefined;
+        //var value = barcode.substr(startIndex, length).replace("".concat("(", currentItem.AI, ")"), "");
 
-//    $.each(struttura, function (r, i) {
-//        //[(]10[)]
-//        var exp = res.match(new RegExp("[(]" + r + "[)]", "g"));
-//        // Non trovato
-//        if (exp == null || exp.length != 1) {
-//            ret = false;
-//            return;
-//        }
-//    });
-
-//    return ret;
-//}
-
-
-
+        var startIndex = barcode.indexOf("".concat("(", currentItem.AI, ")")) + currentItem.AI.length + 2;      // toglie le () + la lunghezza AI
+        var length = barcode.substr(startIndex).replace("".concat("(", currentItem.AI, ")"), "").indexOf("(");
+        var value = barcode.substr(startIndex, length > 0 ? length : undefined);
+        // Se l'AI è della serie 300y ed ha lunghezza 4
+        // La y indica la potenza a cui elevare per ricavare i decimali
+        if (currentItem.AI[0] == '3' && currentItem.AI.length == 4) {
+            var power = Math.pow(10, parseInt(currentItem.AI.substr(3, 1)));
+            var num = parseInt(value);
+            value = (num / power).toString();
+        }
+        result[currentItem.Column] = value;
+    });
+    return result;
+}
 
 /**
  * Crea e verifica la validità del Result
  */
-function checkresult(barcode, indexof) {
+function checkresult(barcode) {
     var ar = [];
-    var res = barcode.ResultList[indexof];
+    var res = barcode.ResultList[0];
     barcode.Result = null;
 
     if (res != null) {
@@ -325,18 +359,29 @@ function checkresult(barcode, indexof) {
         var s = barcode.CurrentBC.Struttura
 
         $.each(s, function (key, val) {
-            ar[val.Idx] = { 'AI': key, 'Column': val.Column };
+            ar.push({ 'AI': key, 'Column': val.Column });
         });
 
+        var obj, obj1, ai, ai1
         for (var i = 0; i < ar.length; i++) {
 
             obj = ar[i];
             obj1 = ar[i + 1];
 
-            var sIdx = res.indexOf("(" + obj.AI + ")");
-            var eIdx = (obj1 != undefined ? res.indexOf("(" + obj1.AI + ")") : undefined);
+            ai = obj.AI.replace("X", ""); //Rimuove la X aggiunta per normalizzare gli AI (errori con [15]!!)
+            ai1 = (obj1 != undefined ? obj1.AI.replace("X", "") : undefined); //Rimuove la X aggiunta per normalizzare gli AI (errori con [15]!!)
+            var sIdx = res.indexOf("(" + ai + ")");
+            var eIdx = (obj1 != undefined ? res.indexOf("(" + ai1 + ")") : undefined);
 
-            barcode.Result[obj.Column] = res.substr(sIdx, eIdx).replace("(" + obj.AI + ")", "");
+            barcode.Result[obj.Column] = res.substr(sIdx, eIdx).replace("(" + ai + ")", "");
+
+            // Se l'AI è della serie 300y ed ha lunghezza 4
+            // La y indica la potenza a cui elevare per ricavare i decimali
+            if (ai[0] == '3' && ai.length == 4) {
+                var power = Math.pow(10, parseInt(ai.substr(3, 1)));
+                var num = parseInt(barcode.Result[obj.Column]);
+                barcode.Result[obj.Column] = (num / power).toString();
+            }
 
             res = res.substr(eIdx);
         }
@@ -344,212 +389,3 @@ function checkresult(barcode, indexof) {
 
     return (barcode.Result != null);
 }
-
-
-
-/****************** CODIFICA *************************/
-/*
-var dtBarcode = {
-    'GS1': {
-        'Descrizione': 'GS1',
-        'Tipo': 0,
-        'Struttura': {
-            '00': {
-                'Idx': 0,
-                'Column': 'SSCC',
-                'Len': 18
-            },
-            '01': {
-                'Idx': 1,
-                'Column': 'EAN',
-                'Len': 14
-            },
-            '10': {
-                'Idx': 2,
-                'Column': 'Cd_ARLotto',
-                'Len': [1, 8]
-            },
-            '15': {
-                'Idx': 3,
-                'Column': 'DataScadenza',
-                'Len': 6
-            },
-            '20': {
-                'Idx': 5,
-                'Column': 'Quantita',
-                'Len': 2
-            },
-            '37': {
-                'Idx': 4,
-                'Column': 'ProcProd',
-                'Len': [1, 8]
-            }
-        }
-    },
-    'STRUTTURATO': {
-        'Descrizione': 'Barcode strutturato',
-        'Tipo': 1,
-        'Struttura': {
-            '0': {
-                'Idx': 0,
-                'Column': 'EAN',
-                'Len': 14
-            },
-            '1': {
-                'Idx': 1,
-                'Column': 'Cd_ARLotto',
-                'Len': 6
-            },
-            '2': {
-                'Idx': 2,
-                'Column': 'DataScadenza',
-                'Len': 6
-            },
-            '3': {
-                'Idx': 4,
-                'Column': 'Quantita',
-                'Len': 3
-            },
-            '4': {
-                'Idx': 3,
-                'Column': 'ProcProd',
-                'Len': 2
-            }
-        }
-    }
-}
-
-// Contiene l'interpretazione del barcode selezionato
-var Lettura = null;
-
-
-function Barcode_Interpreta(str, barcode) {
-    var res = [];
-
-    //In base al tipo, gestisco l'interpretazione
-    switch (barcode.Tipo) {
-        case 0: // GS1 Standard
-            Interpreta_GS1(str, '', res, barcode.Struttura);
-            //Se la lettura non è valida la rimuovo dall'array
-            $.each(res, function (idx, item) {
-                if (!IsValid(item, barcode.Struttura)) {
-                    res.pop(item);
-                }
-            });
-
-            // ATTENZIONE, Se res.length > 1 (HO TROVATO + VALORI VALIDI), altrimenti creo la lettura
-            Lettura = (res.length == 1 ? CreaLettura(res[0], barcode.Struttura) : null);
-            if (Lettura != null) {
-                var bar = new Barcode;
-                bar.add(barcode.Descrizione, barcode.Tipo, str, Lettura, 1);
-                dtBarcodeLetti.push(bar);
-            }
-
-            break;
-        case 1: // Barcode strutturato
-            res.push(str);
-            Interpreta_STRUTTURATO(str);
-            var bar = new Barcode;
-            bar.add(barcode.Descrizione, barcode.Tipo, str, Lettura, 1);
-            dtBarcodeLetti.push(bar);
-        default:
-            res = null;
-            break;
-    }
-
-    return res;
-}
-
-function Interpreta_GS1(str, path, res, struttura) {
-    // push solution path if we've successfully
-    // made it to the end of the string
-    if (str == '') {
-        res.push(path);
-        return;
-    }
-
-    var i, j, ai, code;
-
-    // find next AI code
-    for (
-        i = 0, ai = void (0);
-        i < str.length && (ai = (struttura[code = str.substr(0, i)] != undefined ? struttura[code = str.substr(0, i)].Len : undefined)) === undefined;
-        i++
-    ) { }
-
-
-    if (ai !== undefined) {
-        // recode AI definition to unique format [ MIN, MAX ]
-        ai = typeof ai == 'object' ? ai : [ai, ai];
-        // iterate on all possible lengths and perform recursive call
-        for (j = ai[0]; j <= ai[1]; j++) {
-            if (i + j <= str.length) {
-                Interpreta_GS1(str.substr(i + j), path + '(' + code + ')' + str.substr(i, j), res, struttura);
-            }
-        }
-    }
-}
-
-//Interpreta il barcode in base alla struttura
-function Interpreta_STRUTTURATO(str) {
-    var ar = [];
-
-    $.each(dtAI, function (key, val) {
-        ar[val.Idx] = { 'Column': val.Column, 'Len': val.Len };
-    });
-
-    for (var i = 0; i < ar.length; i++) {
-
-        obj = ar[i];
-
-        Lettura[obj.Column] = str.substr(0, obj.Len);
-
-        str = str.substr(obj.Len);
-    }
-}
-
-//Restituisce l'interpretazione correta'
-function IsValid(res, struttura) {
-
-    var ret = true;
-
-    $.each(struttura, function (r, i) {
-        //[(]10[)]
-        var exp = res.match(new RegExp("[(]" + r + "[)]", "g"));
-        // Non trovato
-        if (exp == null || exp.length != 1) {
-            ret = false;
-            return;
-        }
-    });
-
-    return ret;
-}
-
-
-function CreaLettura(res, struttura) {
-    Lettura = {};
-    var ar = [];
-
-    $.each(struttura, function (key, val) {
-        ar[val.Idx] = { 'AI': key, 'Column': val.Column };
-    });
-
-    for (var i = 0; i < ar.length; i++) {
-
-        obj = ar[i];
-        obj1 = ar[i + 1];
-
-        var sIdx = res.indexOf("(" + obj.AI + ")");
-        var eIdx = (obj1 != undefined ? res.indexOf("(" + obj1.AI + ")") : undefined);
-
-        Lettura[obj.Column] = res.substr(sIdx, eIdx).replace("(" + obj.AI + ")", "");
-
-        res = res.substr(eIdx);
-    }
-
-    return Lettura;
-}
-*/
-
-

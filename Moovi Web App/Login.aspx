@@ -8,15 +8,30 @@
     <%--<meta name="mobile-web-app-capable" content="yes" />--%>
     <link rel="icon" href="image/moovi.ico" type="image/ico" sizes="16x16" />
     <title>MOOVI - Login</title>
+
+    <script src="js/jquery-3.2.0.min.js"></script>
+    <script src="js/injector.js"></script>
+
     <link href="style/w3.css" rel="stylesheet" />
     <link href="style/Style.css" rel="stylesheet" />
-    <script src="js/jquery-3.2.0.min.js"></script>
-    <script src="js/Global.js"></script>
-    <script src="js/Login.js"></script>
-    <script src="js/MediaQuery.js"></script>
+    <link href="style/MediaQuery.css" rel="stylesheet" />
+    <link href="style/icon-library.css" rel="stylesheet" />
+    <!-- Cache Busting -->
     <script>
+        // CSS
+        var styles = [/*"style/w3.css", "style/Style.css", "style/MediaQuery.css", "style/icon-library.css",*/ "style/pgMGDisp.css", "style/Detail_PackingList.css"];
+        styles.forEach(function (item) { injectStyle(item); });
+        // Scripts
+        var scripts = ["js/ajax.js", "js/settings.js", "js/Global.js", "js/Login.js", "js/MediaQuery.js"];
+        scripts.forEach(function (item) { injectScript(item); });
 
-        $(document).ready(function () {
+        window.addEventListener("load", function () {
+
+            // Fondamentale per ajaxCall ed ajaxCallSync in ajax.js per capire da dove provengo!
+            window.baseUrl = "Login.aspx";
+
+            // Carica gli oggetti del local e session storage
+            DataSession_Load();
 
             Ajax_GetDitta();
 
@@ -38,10 +53,10 @@
             oApp.Browser = "<%=Request.Browser.Browser %>";
 
             // gestisco i cookies
-            if (localStorage.Ricordami && localStorage.Ricordami != '') {
+            if (oLocalStorage.get("Ricordami", '') !== '') {
                 $('#Ricordami').attr('checked', 'checked');
-                $('#Cd_Operatore').val(localStorage.Cd_Operatore);
-                $('#Password').val(localStorage.Password);
+                $('#Cd_Operatore').val(oLocalStorage.get("Cd_Operatore"));
+                $('#Password').val(oLocalStorage.get("Password"));
             } else {
                 $('#Ricordami').removeAttr('checked');
                 $('#Cd_Operatore').val('');
@@ -64,7 +79,7 @@
 
 </head>
 <body>
-    
+
 
     <div id="pglogin" class="w3-centered">
         <div id="loginmain" class="w3-round-medium mo-foggy w3-display-middle mo-mb-5">
@@ -88,7 +103,8 @@
                 </div>
 
                 <div style="display: inline-block;">
-                    <label class="w3-text-white"><input id="Ricordami" class="w3-check" type="checkbox" />&nbsp;Ricordami</label>
+                    <label class="w3-text-white">
+                        <input id="Ricordami" class="w3-check" type="checkbox" />&nbsp;Ricordami</label>
                 </div>
 
                 <div class="w3-right" style="display: inline-block;">

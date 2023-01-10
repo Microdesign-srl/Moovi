@@ -1,7 +1,4 @@
 ﻿<%@ Page Language="C#" AutoEventWireup="true" CodeBehind="testbc.aspx.cs" Inherits="MooviWeb.testbc" %>
-
-<!DOCTYPE html>
-
 <html xmlns="http://www.w3.org/1999/xhtml">
 <head runat="server">
     <meta http-equiv="Content-Type" content="text/html; charset=utf-8" />
@@ -14,9 +11,18 @@
 </head>
 <body class="mo-darkblue">
     <script>
+
         $(document).ready(function () {
 
-            $("#txtBC").focus();
+            $("#txtBC").keyup(function (e) {
+                switch (e.which) {
+                    case 13:    //Invio
+                        TestBarcode();
+                        break;
+                    default:
+                        break;
+                }
+            });
 
             $("#btnTest").on("click", function () {
                 TestBarcode();
@@ -26,6 +32,9 @@
                 $("#txtBC").val("");
                 $(".output").text("");
             });
+
+            $("#txtBC").focus();
+
         });
 
         // PRende il parametro Cd dal path 
@@ -43,13 +52,22 @@
             var cd_bc = getParameterByName("Cd");
             //Svuoto il risultato
             $(".output").text("");
-            //Se il campo txt è pieno
-            if (!fU.IsEmpty($("#txtBC").val())) {
-                //Chiamata lato server per scaricare la cfg del bc
-                Ajax_xMOBCCampo(cd_bc);
+            $("#DetailBarcode .barcode").find("label").text("");
+            $("#DetailBarcode .tot").text("0");
+            $("#DetailBarcode .err").text("0");
+            $("#DetailBarcode li.li-bc").remove();
+
+            if (!fU.IsEmpty(cd_bc)) {
+                //Se il campo txt è pieno
+                if (!fU.IsEmpty($("#txtBC").val())) {
+                    //Chiamata lato server per scaricare la cfg del bc
+                    Ajax_xMOBCCampo(cd_bc);
+                } else {
+                    $(".output").text("Inserire un valore nel testo Barcode!");
+                }
+            } else {
+                $(".output").text("Codice BC non presente nel query-string (ATTENZIONE CASE SENSITIVE--> testbc.aspx?Cd=???)");
             }
-            else
-                alert("Codice BC non presente nel query-string (CASE SENSITIVE--> testbc.aspx?Cd=???)");
         }
 
         function Ajax_xMOBCCampo(cd_bc) {
@@ -65,44 +83,67 @@
                 dataType: "json",
                 contentType: "application/json; charset=utf-8",
                 success: function (mydata) {
+                    console.log($.parseJSON(mydata.d));
                     try {
                         var BC = new Barcode($.parseJSON(mydata.d));
+                        console.log(BC);
                         //BC.Detail_Clear();         //Prima di annullare il BC pulisco il detail -*-
                         BC.SetCurrentBC(cd_bc);
                         //Testo il barcode
-                        BC.Read($("#txtBC").val());
-                        // A seconda del tipo mostro il risultato
-                        switch (BC.CurrentBC.Tipo) {
-                            case SSCC:
-                                $(".output").text(BC.CurrentStr);
-                                break;
-                            case GS1:
-                                var res = "";
-                                //lettura effettuata a buon fine
-                                $.each(BC.ResultList, function (key, val) {
-                                    //dentro la mia variabile result è prensente:
-                                    //key = nome della colonna intepretata, val = valore intepretata
-                                    res += val + '<br />';
-                                });
+                        //Testo il barcode
+                        var codice = $("#txtBC").val();
+                        //Normalizza i dati letti
+                        if (fU.IsChecked($("#chkNormalizza"))) {
+                            codice = codice.replace(/\(/g, "").replace(/\)/g, "");
+                        }
+                        BC.Read(codice);
+                        if (!fU.IsEmpty(BC.CurrentBC)) {
+                            console.log(BC);
+                            // A seconda del tipo mostro il risultato
+                            switch (BC.CurrentBC.Tipo) {
+                                case SSCC:
+                                    $(".output").text(BC.CurrentStr);
+                                    break;
+                                case GS1:
+                                    var res = "";
+                                    var nRows = 0;
+                                    //lettura effettuata a buon fine
+                                    console.log(BC.Result);
+                                    $.each(BC.ResultList, function (key, bc_val) {
+                                        //dentro la mia variabile result è prensente:
+                                        //key = nome della colonna intepretata, val = valore intepretata
 
-                                if (res == "")
-                                    res = "Nessuna interpretazione valida per il barcode!";
+                                        //Aggiunge la riga letta dal template
+                                        var li = $("#DetailBarcode li.template").clone().removeClass("template").removeAttr("style").addClass("li-bc")
+                                        nRows++;
+                                        li.attr("lettura", nRows)
+                                        li.find(".numero").html(nRows + ".&nbsp;&nbsp;");
+                                        li.find(".codice").text(bc_val);
 
-                                $(".output").html(res);
-                                break;
-                            case STD:
-                                //$(".output").text("Non implementato!");
-                                var res = "";
-                                var nRows = 0;
-                                //Aggiunge la riga letta dal template
-                                $.each(BC.Result, function (key, val) {
-                                    nRows++;
-                                    res += "(" + nRows + ")[" + key + "=]" + val + "; ";
-                                });
-                                $(".output").text(res);
-                                break;
-                            default:
-                                $(".output").text("Non ho ENUM di interpretazione del Barcode!");
+                                        $("#DetailBarcode ul").append(li);
+
+                                    });
+
+                                    if (BC.ResultIsValid == false)
+                                        res = "Nessuna interpretazione valida per il barcode!";
+
+                                    $(".output").text(res);
+                                    break;
+                                case STD:
+                                    var res = "";
+                                    var nRows = 0;
+                                    //Aggiunge la riga letta dal template
+                                    $.each(BC.Result, function (key, val) {
+                                        nRows++;
+                                        res += "(" + nRows + ")[" + key + "=]" + val + "; ";
+                                    });
+                                    $(".output").text(res);
+                                    break;
+                                default:
+                                    $(".output").text("Non ho ENUM di interpretazione del Barcode!");
+                            }
+                        } else {
+                            $(".output").text("Impossibile interpretare il Barcode!");
                         }
                     }
                     catch (err) {
@@ -116,18 +157,35 @@
         }
 
     </script>
-    <div class="w3-round-medium mo-foggy w3-display-middle w3-center" style="padding: 20px 20px;">
-        <div class="w3-container w3-center">
-            <label class="mo-title w3-centered w3-text-white">MOOVI</label>
-        </div>
-        <div class="w3-container w3-row mo-mt-8 w3-centered">
-            <h4 class="w3-text-white mo-bold">BARCODE</h4>
-            <input type="text" id="txtBC" class="w3-input w3-border w3-large" style="padding: 10px !important" />
-            <button id="btnTest" class="w3-button w3-green w3-margin-top w3-center mo-padding-20-34">TEST</button>
-            <button id="btnClear" class="w3-button w3-green w3-margin-top w3-center mo-padding-20-34">Clear</button>
-        </div>
-        <div class="w3-row w3-margin-top w3-center">
-            <label class="output w3-text-white w3-large"></label>
+    <div style="width: 100%">
+        <div style="width: 60%" class="w3-round-medium mo-foggy w3-display-middle w3-center">
+            <div class="w3-container w3-center">
+                <label class="mo-title w3-centered w3-text-white">MOOVI</label>
+            </div>
+            <div class="lg-divinput">
+                <label class="lg-loginfont w3-center">BARCODE</label><br />
+                <input type="text" id="txtBC" style="width: 80%" class="lg-input" style="padding: 10px !important" value="" />
+                <br />
+                <br />
+                <label class="w3-center">
+                    <input id="chkNormalizza" value="true" type="checkbox" checked="checked" />
+                    Normalizza</label>
+                <br />
+                <button id="btnTest" class="w3-button w3-green w3-margin-top w3-center mo-padding-20-34">Test</button>
+                <button id="btnClear" class="w3-button w3-green w3-margin-top w3-center mo-padding-20-34">Clear</button>
+            </div>
+            <div class="w3-row w3-margin-top w3-center">
+                <div id="DetailBarcode" class="lg-modal lg-gray lg-zindex-200 w3-margin-bottom">
+                    <%-- Elenco bc interpretati --%>
+                    <ul class="w3-ul lg-ul lg-gray">
+                        <li class="template w3-white" style="display: none;">
+                            <span class="numero mo-display-inlineblock w3-left lg-fontblue"></span>
+                            <span class="codice mo-display-inlineblock w3-margin-right"></span>
+                        </li>
+                    </ul>
+                </div>
+                <label class="output w3-large"></label>
+            </div>
         </div>
     </div>
 </body>
